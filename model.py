@@ -4,6 +4,17 @@
 class MPPModel():
     def __init__(self, args, sample=False):
 
+        self.n = n
+        
+
+        def tf_normal(y, mu, s):
+            with tf.variable_scope('normal'):
+                ss = tf.maximum(1e-10,tf.square(s))
+                norm = tf.subtract(y[:,:args.chunk_samples], mu)
+                z = tf.div(tf.square(norm), ss)
+                denom_log = tf.log(2*np.pi*ss, name='denom_log')
+                result = tf.reduce_sum(z+denom_log, 1)/2
+            return result
 
         def tf_kl_gaussgauss(mu_1, sigma_1, mu_2, sigma_2):
             with tf.variable_scope("kl_gaussgauss"):
@@ -13,12 +24,11 @@ class MPPModel():
                   + (tf.square(sigma_1) + tf.square(mu_1 - mu_2)) / tf.maximum(1e-9,(tf.square(sigma_2))) - 1
                 ), 1)
 
-        def get_lossfunc(enc_mu, enc_sigma, dec_mu, dec_sigma, dec_rho, prior_mu, prior_sigma, y):
+        
+        def get_lossfunc(enc_mu, enc_sigma, dec_mu, dec_sigma, prior_mu, prior_sigma, y):
             kl_loss = tf_kl_gaussgauss(enc_mu, enc_sigma, prior_mu, prior_sigma)
             likelihood_loss = tf_normal(y, dec_mu, dec_sigma, dec_rho)
-
             return tf.reduce_mean(kl_loss + likelihood_loss)
-            #return tf.reduce_mean(likelihood_loss)
 
         self.args = args
         if sample:

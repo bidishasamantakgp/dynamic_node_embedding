@@ -2,6 +2,19 @@ from utils import *
 
 
 
+def input_layer(adj, feature, k, n, d, activation = None, batch_norm = False, istrain = False, scope = None):
+    w_in = tf.get_variable(name="w_in", shape=[k,d,5], initializer=tf.constant_initializer(0.5))
+    w_in = tf.Print(w_in,[w_in], message="my w_in-values:")
+    output_list = []
+    
+    for i in range(k):
+        if i > 0:
+            output_list.append( tf.multiply(tf.matmul(w_in[i], feature),tf.matmul(adj, output_list[i-1])))
+        else:
+            output_list.append(tf.matmul(feature, w_in[i]))
+    
+return tf.stack(output_list)
+
 
 def fc_layer(input_, output_size, activation = None, batch_norm = False, istrain = False, scope = None):
     '''
