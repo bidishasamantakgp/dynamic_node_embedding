@@ -138,7 +138,7 @@ class MPPModel():
                         .format(e * n_batches + b,
                                 args.num_epochs * n_batches,
                                 e, args.chunk_samples * train_loss, end - start, sigma.mean(axis=0).mean(axis=0))
-        start = time.time()
+            start = time.time()
             
 
 
