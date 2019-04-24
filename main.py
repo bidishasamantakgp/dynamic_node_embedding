@@ -38,5 +38,6 @@ def add_arguments():
 if __name__ == '__main__':
     parser = add_arguments()
     args = parser.parse_args()
+    data_train, data_test = create_samples(args)
     model = MPPModel(args)
     model.train(args)

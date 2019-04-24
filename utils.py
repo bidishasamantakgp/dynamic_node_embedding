@@ -1,16 +1,28 @@
-def next_batch(args):
-    t0 = np.random.randn(args.batch_size, 1, (2 * args.chunk_samples))
-    mixed_noise = np.random.randn(
-        args.batch_size, args.seq_length, (2 * args.chunk_samples)) * 0.1
-    #x = t0 + mixed_noise + np.random.randn(
-    #    args.batch_size, args.seq_length, (2 * args.chunk_samples)) * 0.1
-    #y = t0 + mixed_noise + np.random.randn(
-    #    args.batch_size, args.seq_length, (2 * args.chunk_samples)) * 0.1
-    x = np.sin(2 * np.pi * (np.arange(args.seq_length)[np.newaxis, :, np.newaxis] / 10. + t0)) + np.random.randn(
-        args.batch_size, args.seq_length, (2 * args.chunk_samples)) * 0.1 + mixed_noise*0.1
-    y = np.sin(2 * np.pi * (np.arange(1, args.seq_length + 1)[np.newaxis, :, np.newaxis] / 10. + t0)) + np.random.randn(
-        args.batch_size, args.seq_length, (2 * args.chunk_samples)) * 0.1 + mixed_noise*0.1
 
-    y[:, :, args.chunk_samples:] = 0.
-    x[:, :, args.chunk_samples:] = 0.
+import picke
+
+def load_data(filename):
+    return pickle.load(filename)
+
+def create_samples(args):
+    input_data = load_data(args.data_file)
+    train_data = input_data[:args.train_size]
+    test_data = input_data[args.train_data:]
+    samples_train = []
+    samples_test = []
+
+    for i in range(0, len(train_data), args.seq_length):
+        sample = train_data[i : i + args.seq_length + 1]
+        samples_train.append(sample)
+    
+    for i in range(0, len(test_data), args.seq_length):
+        sample = test_data[i : i + args.seq_length + 1]
+        samples_test.append(sample)
+
+    return samples_train, samples_test
+
+def next_sample(args, samples, i):
+    reshaped = np.reshape(samples[i], len(samples[i]), 1)
+    x = rehspaed[:,-1]
+    y = reshaped[:1:]
 return x, y

@@ -24,7 +24,7 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
 
     @property
     def state_size(self):
-        return (self.n_h, self.n_h)
+        return ([(self.n_h, self.n_h), self.n_h, self.n_h)])
 
     @property
     def output_size(self):
@@ -45,8 +45,6 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
         k = self.k
 
         with tf.variable_scope(scope or type(self).__name__):
-        
-            
             with tf.variable_scope("Prior"):
                 h_inter = fc_layer(h_t, self.dim_z, scope="intermidiate")
                 y_s = []
