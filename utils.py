@@ -1,13 +1,17 @@
 
-import picke
+import pickle
+
+def get_shape(tensor):
+    '''return the shape of tensor as list'''
+    return tensor.get_shape().as_list()
 
 def load_data(filename):
-    return pickle.load(filename)
+    return pickle.load(open(filename))
 
 def create_samples(args):
     input_data = load_data(args.data_file)
     train_data = input_data[:args.train_size]
-    test_data = input_data[args.train_data:]
+    test_data = input_data[args.train_size:]
     samples_train = []
     samples_test = []
 
@@ -25,4 +29,4 @@ def next_sample(args, samples, i):
     reshaped = np.reshape(samples[i], len(samples[i]), 1)
     x = rehspaed[:,-1]
     y = reshaped[:1:]
-return x, y
+    return x, y
