@@ -5,10 +5,10 @@ from utils import *
 from math import exp
 
 
-class MPPCell(tf.nn.rnn_cell.RNNCell):
+class MPPCell(object):
     """Variational Auto Encoder cell."""
 
-    def __init__(self, args, adj, adj_prev, features, B_old, r_old, t_next, eps):
+    def __init__(self, args, adj, adj_prev, features, B_old, r_old, eps):
         
         '''
         Args:
@@ -19,11 +19,10 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
         self.n = args.n
         self.n_h = args.h_dim
         self.adj = adj
-        self.t_prev = t_prev
+        #self.T = t_next
         self.adj_prev = adj_prev
         self.d = args.d_dim
         self.k = args.k
-        self.t_next = t_next
         self.B_old = B_old
         self.r_old = r_old
         self.features = features
@@ -32,20 +31,14 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
         self.lstm_s = tf.contrib.rnn.LSTMCell(self.n_h, state_is_tuple=True)
         self.lstm_t = tf.contrib.rnn.LSTMCell(self.n_h, state_is_tuple=True)
 
-    @property
-    def state_size(self):
-        return [(self.n_h, self.n_h), (self.n_h, self.n_h)]
 
-    @property
-    def output_size(self):
-        return self.n_h
-
-    def new_call(self, x, state, scope=None):
+    def new_call(self, x, t_curr, state, scope=None):
         
         '''
 	Args:
 	    x : input event (u,v,t, type)
     	'''
+        
         state_temporal, state_structural = state
         print "Debug inside cell", x, state_temporal, state_structural
         #u, v, t, type_m = x
@@ -53,8 +46,10 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
         v = x[0][1]
         t = x[0][2]
         type_m = x[0][3]
+        
         h_t = state_temporal
         h_s = state_structural
+        
         
         #o_t, h_t = state_temporal
         #o_s, h_s = state_structural
@@ -65,7 +60,7 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
         
         k = self.k
         
-        with tf.variable_scope(scope or type(self).__name__):
+        with tf.variable_scope(scope or type(self).__name__, reuse=tf.AUTO_REUSE):
             with tf.variable_scope("Prior"):
                 h_inter = fc_layer(h_t, self.n_h, scope="intermidiate")
                 y = input_layer(self.adj_prev, self.features, k, self.n, self.d)
@@ -75,7 +70,6 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
                     print "Debug y_i", y[i].dtype, h_s.dtype, y.get_shape(), h_s.get_shape()
                     y_s.append(tf.concat([y[i], h_s], axis=1))
                     print "Debug y_s shape", y_s[i].get_shape()
-
                     temp1 = tf.gather_nd(self.adj_prev, (i, u))
                     temp2 = tf.gather(y, u)
                     temp3 = tf.gather_nd(self.adj_prev, (i,v))
@@ -211,9 +205,9 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
                     for j in range(self.n):
                         #p_uv = (1.0 - tf.gather_nd(adj, (i,j))) * (self.alpha * tf.gather())
                         p_uv = tf.gather_nd(P, (i,j))
-                        time = tf.reshape(tf.cast([t - self.t_prev], tf.float32),[1,1])
-                        #print "Debug time", time.get_shape()
-                        lambda_association.append(tf.concat([p_uv * h_s, p_uv * time], axis = 1))
+                        time = tf.reshape(tf.cast([t_curr - t], tf.float32),[1,1])
+                        print "Debug time", time.get_shape()
+                        lambda_association.append(tf.concat([p_uv * h_s, p_uv * time], axis=1))
                         lambda_communication.append(tf.concat([h_t, time, tf.transpose(z[i]), tf.transpose(z[j])], axis = 1))
                 l_a = fc_layer(tf.reshape(tf.stack(lambda_association), [self.n * self.n, -1]), 1, activation=tf.nn.softplus, scope="association")
                 l_c = fc_layer(tf.reshape(tf.stack(lambda_communication), [self.n * self.n, -1]), 1, activation=tf.nn.softplus, scope="communication")
@@ -223,21 +217,16 @@ class MPPCell(tf.nn.rnn_cell.RNNCell):
             print "Debug z dim", tf.reduce_sum(z, axis=0).get_shape(), z.get_shape()
             z_reshape = tf.reshape(z,[self.n, 1, self.z_dim] )
             zeta_reshape = tf.reshape(zeta,[self.n, 1, self.z_dim])
+            
             temp = tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1)
             print "Temp", temp.get_shape(), h_t.get_shape(), tf.zeros([self.n_h]).get_shape(), h_s.get_shape()
-            o_t_new, h_t_new = self.lstm_t(tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1), h_t)
-            #o_t_new, h_t_new = self.lstm_t(tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_t))
-            h_s_new = []
-            #o_s_new, h_s_new= self.lstm_s(tf.concat([tf.reduce_sum(zeta_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_s)) 
-            #print "Debug new shapes", h_t_new[0].get_shape(), h_s_new[0].get_shape(), h_t_new[1].get_shape(), h_s_new[1].get_shape()
-            #if type_m == 1:
-            #    o_t_new, h_t_new = self.lstm_t(tf.concat([tf.sum(z), t]),h_t)            
             
-            #(o_s_new, h_s_new) = ([], h_s)
-            #if type_m == 0:
-            #    o_s_new, h_s_new= self.lstm_s(tf.concat(tf.sum(zeta), t), h_s)
+            o_t_new, s_t = self.lstm_t(tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_t))
+            o_s_new, s_s = self.lstm_s(tf.concat([tf.reduce_sum(zeta_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_s)) 
+            c, h_t_new = s_t
+            c, h_s_new = s_s
              
-        return (l_c, l_a, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma, de), (h_t_new, h_s_new)
+        return (l_c, l_a, enc_zeta_mu, enc_z_mu, enc_zeta_sigma, enc_z_sigma, prior_zeta_mu, prior_z_mu, prior_zeta_sigma, prior_z_sigma), h_t_new, h_s_new
 
     def call(self, x, state):
         return self.__call__(x, state)

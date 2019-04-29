@@ -38,6 +38,7 @@ def add_arguments():
     parser.add_argument('--decay_rate', type=float, default=1.,
                         help='decay of learning rate')
     parser.add_argument('--k', type=int, default=5, help='dimension of the hidden space')
+    parser.add_argument('--T', type=int, default=10000, help='maximum time T in training')
     parser.add_argument('--train_size', type=int, default=50000,
                         help='the training instances to be loaded')
     parser.add_argument('--alpha', type=float, default=0.5, help='probability of sampling') 
@@ -52,5 +53,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     #data_train, data_test = create_samples(args)
     #print "data loading debug", len(data_train), data_train[0]
-    model = MPPModel(args, 84)
+    model = MPPModel(args, 4)
     #model.train(args)
