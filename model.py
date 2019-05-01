@@ -7,15 +7,37 @@ class MPPModel():
 
         self.n = n
 
-        def tf_likelihood(y, l_a, l_c):
+        def tf_likelihood(y, m, l_a, l_c):
             with tf.variable_scope('likelihood'):
-                u = y[0][0]
-                v = y[0][1]
-                m = y[0][2]
-                t = y[0][3]
+                #u = y[0][0]
+                #v = y[0][1]
+                #m = y[0][2]
+                #t = y[0][3]
+                # zero one vector for the events to occur
+                
+                
+                # event that did not occur
+                comp_y = tf.subtract(tf.ones([self.n, self.n]), y)
+                
+                l_a = tf.reshape(l_a, [self.n, self.n])
+                l_c = tf.reshape(l_c, [self.n, self.n])
+                
+                l_a_occured = tf.log(tf.multiply(y, l_a))
+                l_a_comp = tf.multiply(comp_y, l_a) 
+                
+                l_c_occured = tf.log(tf.multiply(y, l_c))
+                l_c_comp = tf.multiply(comp_y, l_c)
+                
+                #indicator = (1 - m)
 
-                #del_t = t - prev
-                ll = tf.cast([1 - m], tf.float32) * (tf.log(tf.gather_nd(l_a, (u, v)) - tf.gather_nd(l_a, (u, v)))) + tf.cast((1-m), tf.float32) * (tf.log(tf.gather_nd(l_c, (u, v)) - tf.gather_nd(l_c, (u, v))))
+                association_loss =  tf.cast([1 - m], tf.float32) * tf.subtract(tf.reduce_sum(l_a_occured), tf.reduce_sum(l_a_comp))
+                communication_loss = tf.cast([m], tf.float32) * tf.subtract(tf.reduce_sum(l_a_occured), tf.reduce_sum(l_a_comp))
+                
+                print "Debug c", communication_loss.get_shape()
+                print "Debug a", association_loss.get_shape()
+                ll = association_loss + communication_loss 
+                print "Debug ll", ll
+                
                 return ll
 
         def tf_kl_gaussgauss(mu_1, sigma_1, mu_2, sigma_2):
@@ -41,7 +63,7 @@ class MPPModel():
 
 
         
-        def get_lossfunc(l_c, l_a, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma, y):
+        def get_lossfunc(l_c, l_a, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma, y,m):
             loss = 0.0
             print "Debug size enc", enc_zeta_mu.get_shape(), y.get_shape()
             #y = y[0]
@@ -49,7 +71,7 @@ class MPPModel():
                 print "Debug i", i
                 kl_loss_zeta = tf_kl_gaussgauss(enc_zeta_mu[i], enc_zeta_sigma[i], prior_zeta_mu[i], prior_zeta_sigma[i])
                 kl_loss_z = tf_kl_gaussgauss(enc_z_mu[i], enc_z_sigma[i], prior_z_mu[i], prior_z_sigma[i])
-                likelihood_loss = tf_likelihood(y[:,i, :], l_a[i], l_c[i])
+                likelihood_loss = tf_likelihood(y[i, :],m[i], l_a[i], l_c[i])
                 loss += tf.reduce_mean(kl_loss_zeta - likelihood_loss)
             return loss
 
@@ -64,7 +86,10 @@ class MPPModel():
         # self.cell = cell
 
         self.input_data = tf.placeholder(dtype=tf.int32, shape=[args.batch_size, args.seq_length, 4], name='input_data')
-        self.target_data = tf.placeholder(dtype=tf.int32, shape=[args.batch_size, args.seq_length, 4], name='target_data')
+        
+        self.target_data = tf.placeholder(dtype=tf.float32, shape=[args.seq_length, self.n, self.n], name='target_data')
+        self.m = tf.placeholder(dtype=tf.float32, shape=[args.seq_length, 1], name='type_messege')
+        
         self.features = tf.placeholder(dtype=tf.float32, shape=[args.n, args.d_dim], name='features')
         self.eps = tf.placeholder(dtype=tf.float32, shape=[args.n, args.z_dim, 1], name='eps')
         self.adj = tf.placeholder(dtype=tf.float32, shape=[args.n, args.n], name='adj')
@@ -125,7 +150,7 @@ class MPPModel():
         #self.mu = dec_mu
         #self.sigma = dec_sigma
         print "Debug size before the lossfunc", enc_zeta_mu
-        lossfunc = get_lossfunc(l_c, l_a, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma, self.target_data)
+        lossfunc = get_lossfunc(l_c, l_a, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma, self.target_data, self.m)
         
         self.l_c = l_c
         self.l_a = l_a
@@ -137,11 +162,11 @@ class MPPModel():
         tf.summary.scalar('lambda_communication', l_c)
         tf.summary.scalar('lambda_association', l_a)
 
-
         self.lr = tf.Variable(0.0, trainable=False)
         tvars = tf.trainable_variables()
         for t in tvars:
             print "trainable vars", t.name
+        
         grads = tf.gradients(self.cost, tvars)
         optimizer = tf.train.AdamOptimizer(self.lr)
         self.train_op = optimizer.apply_gradients(zip(grads, tvars))

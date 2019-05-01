@@ -204,7 +204,8 @@ class MPPCell(object):
                 for i in range(self.n):
                     for j in range(self.n):
                         #p_uv = (1.0 - tf.gather_nd(adj, (i,j))) * (self.alpha * tf.gather())
-                        p_uv = tf.gather_nd(P, (i,j))
+                        p_uv = P[i][j]
+                        #p_uv = tf.gather_nd(P, [i,j])
                         time = tf.reshape(tf.cast([t_curr - t], tf.float32),[1,1])
                         print "Debug time", time.get_shape()
                         lambda_association.append(tf.concat([p_uv * h_s, p_uv * time], axis=1))
