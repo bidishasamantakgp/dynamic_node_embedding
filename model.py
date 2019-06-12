@@ -102,8 +102,8 @@ class MPPModel():
         self.initial_state_t = tf.placeholder(dtype = tf.float32, shape = [1, args.h_dim], name = "s_t")
         self.initial_state_s = tf.placeholder(dtype = tf.float32, shape = [1, args.h_dim], name = "s_c")
         #self.event_indicator = tf.placeholder(dtype = tf.int32, shape = [args.n], name = "indicator")
-
-        cell = MPPCell(args, self.adj, self.adj_prev, self.features, self.B_old, self.r_old, self.eps)
+        with tf.device('/device:GPU:1'):
+            cell = MPPCell(args, self.adj, self.adj_prev, self.features, self.B_old, self.r_old, self.eps)
         
         self.cell = cell
         #debug_state_size = cell.zero_state(batch_size=args.batch_size, dtype=tf.float32)
@@ -147,7 +147,7 @@ class MPPModel():
                 outputs_reshape.append(x)
 
         l_c, l_a, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma = outputs_reshape
-        self.final_state_c,self.final_state_h = state
+        self.final_state_t, self.final_state_s = state
         #self.mu = dec_mu
         #self.sigma = dec_sigma
         print "Debug size before the lossfunc", enc_zeta_mu
@@ -192,8 +192,14 @@ class MPPModel():
 
         n_batches = len(samples)
         #sample_train, sample_test = create_sample(args)
-        
-        with tf.Session() as sess:
+        config = tf.ConfigProto(
+        allow_soft_placement=True,
+        log_device_placement=True
+        )
+        config.gpu_options.allow_growth = True
+
+        with tf.Session(config=config) as sess:
+        #with tf.Session() as sess:
             summary_writer = tf.summary.FileWriter('logs/' + datetime.now().isoformat().replace(':', '-'), sess.graph)
             check = tf.add_check_numerics_ops()
             merged = tf.summary.merge_all()
@@ -227,7 +233,7 @@ class MPPModel():
 
                     feed = {self.initial_state_s:initial_state_s, self.initial_state_t:initial_state_t,\
                     self.input_data: x, self.target_data: y, self.features: features, self.eps:eps, \
-                    self.B_old: B_old, self.r_old: r_old, self.adj: adj_list, self.adj_prev: adj_lis_prev, \
+                    self.B_old: B_old, self.r_old: r_old, self.adj: adj_list, self.adj_prev: adj_list_prev, \
                     self.time_cur: time_next}
                     train_loss, _, cr, summary, initial_state_s, initial_state_t, B_old, r_old = sess.run(
                             [self.cost, self.train_op, check, merged, self.final_state_s, self.final_state_t, self.B_new, self.r_new], feed)

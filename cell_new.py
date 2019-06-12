@@ -227,7 +227,7 @@ class MPPCell(object):
             c, h_t_new = s_t
             c, h_s_new = s_s
              
-        return (l_c, l_a, enc_zeta_mu, enc_z_mu, enc_zeta_sigma, enc_z_sigma, prior_zeta_mu, prior_z_mu, prior_zeta_sigma, prior_z_sigma), h_t_new, h_s_new
+        return (l_c, l_a, enc_zeta_mu, enc_z_mu, enc_zeta_sigma, enc_z_sigma, prior_zeta_mu, prior_z_mu, prior_zeta_sigma, prior_z_sigma), (h_t_new, h_s_new)
 
     def call(self, x, state):
         return self.__call__(x, state)

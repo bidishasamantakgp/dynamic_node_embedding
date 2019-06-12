@@ -55,12 +55,15 @@ if __name__ == '__main__':
     parser = add_arguments()
     args = parser.parse_args()
     t1 = time.time()
+
+    #with tf.device('/device:GPU:0'):
     model = MPPModel(args)
+
     t2 = time.time()
     print "initialising done", t2-t1 , " Time"
     t1 = time.time()
     data_train, data_test = create_samples(args)
     t2 = time.time()
     print "data loading done", t2-t1, len(data_train), data_train[0]
-
+    print next_batch(args, data_train,0)
     model.train(args, data_train)

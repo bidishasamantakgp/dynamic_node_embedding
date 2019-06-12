@@ -3,11 +3,12 @@ import tensorflow as tf
 
 
 def input_layer(adj, feature, k, n, d, activation = None, batch_norm = False, istrain = False, scope = None):
+    #with tf.device('/device:GPU:0'):
     with tf.variable_scope(scope or "input", reuse=tf.AUTO_REUSE):
         w_in = tf.get_variable(name="w_in", shape=[k,d,d], initializer=tf.constant_initializer(0.5))
-        w_in = tf.Print(w_in,[w_in], message="my w_in-values:")
+        #w_in = tf.Print(w_in,[w_in], message="my w_in-values:")
         output_list = []
-    
+
         for i in range(k):
             if i > 0:
                 #print "Debug I", i, output_list[0]
@@ -16,7 +17,7 @@ def input_layer(adj, feature, k, n, d, activation = None, batch_norm = False, is
                 output_list.append( tf.multiply(tf.transpose(tf.matmul(w_in[i], tf.transpose(feature))),tf.matmul(adj, output_list[i-1])))
             else:
                 output_list.append(tf.transpose(tf.matmul(w_in[i], tf.transpose(feature))))
-    
+
         return tf.reshape(output_list[-1],[n, 1, d])
         #return tf.stack(output_list)
 
@@ -39,11 +40,12 @@ def fc_layer(input_, output_size, activation = None, batch_norm = False, istrain
         scope - string
             defaults to be None then scope becomes "fc"
     '''
+    #with tf.device('/device:GPU:0'):
     with tf.variable_scope(scope or "fc", reuse=tf.AUTO_REUSE):
         w = tf.get_variable(name="w", shape = [get_shape(input_)[1], output_size], initializer=tf.contrib.layers.xavier_initializer())
         #w = tf.get_variable(name="w", shape = [get_shape(input_)[1], output_size], initializer=tf.constant_initializer(0.0001))
-        w = tf.Print(w,[w], message="my W-values:")
-      
+        #w = tf.Print(w,[w], message="my W-values:")
+
         b = tf.get_variable(name="b", shape = [output_size], initializer=tf.constant_initializer(0.01))
         #b = tf.Print(b, [b], message="my B-values:"+scope)
         if activation is None:

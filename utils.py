@@ -37,7 +37,7 @@ def create_samples(args):
 
     return samples_train, samples_test
 
-def get_adj_list(samples, n):
+def get_adjacency_list(samples, n):
     
     adj = np.zeros((n, n))
     adj_list = []
@@ -54,9 +54,9 @@ def get_adj_list(samples, n):
     return adj_list
 
 def next_batch(args, samples, i):
-    reshaped = np.reshape(samples[i], len(samples[i]), 1)
-    x = reshaped[:,-1]
-    y = reshaped[:1:]
+    #reshaped = np.reshape(samples[i], [len(samples[i]), 1])
+    x = samples[i][:-1]
+    y = samples[i][1:]
     return x, y
 
 
