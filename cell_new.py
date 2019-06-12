@@ -32,7 +32,7 @@ class MPPCell(object):
         self.lstm_t = tf.contrib.rnn.LSTMCell(self.n_h, state_is_tuple=True)
 
 
-    def new_call(self, x, t_curr, state, scope=None):
+    def new_call(self, x, t_next, state, scope=None):
         
         '''
 	Args:
@@ -206,8 +206,8 @@ class MPPCell(object):
                         #p_uv = (1.0 - tf.gather_nd(adj, (i,j))) * (self.alpha * tf.gather())
                         p_uv = P[i][j]
                         #p_uv = tf.gather_nd(P, [i,j])
-                        time = tf.reshape(tf.cast([t_curr - t], tf.float32),[1,1])
-                        print "Debug time", time.get_shape()
+                        time = tf.reshape(tf.cast([t_next - t], tf.float32),[1,1])
+                        #print "Debug time", time.get_shape()
                         lambda_association.append(tf.concat([p_uv * h_s, p_uv * time], axis=1))
                         lambda_communication.append(tf.concat([h_t, time, tf.transpose(z[i]), tf.transpose(z[j])], axis = 1))
                 l_a = fc_layer(tf.reshape(tf.stack(lambda_association), [self.n * self.n, -1]), 1, activation=tf.nn.softplus, scope="association")
@@ -222,7 +222,7 @@ class MPPCell(object):
             temp = tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1)
             print "Temp", temp.get_shape(), h_t.get_shape(), tf.zeros([self.n_h]).get_shape(), h_s.get_shape()
             
-            o_t_new, s_t = self.lstm_t(tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_t))
+            o_t_new, s_t = self.lstm_t(tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1), (tf.zeros([]), h_t))
             o_s_new, s_s = self.lstm_s(tf.concat([tf.reduce_sum(zeta_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_s)) 
             c, h_t_new = s_t
             c, h_s_new = s_s

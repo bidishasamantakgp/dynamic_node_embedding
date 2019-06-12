@@ -1,5 +1,17 @@
 
 import pickle
+import tensorflow as tf
+import numpy as np
+
+def extract_time(samples):
+    time = []
+    for sample in samples:
+        time.append(sample[2])
+    return time
+
+
+def get_one_hot_features(n):
+    return np.identity(n)
 
 def get_shape(tensor):
     '''return the shape of tensor as list'''
@@ -25,8 +37,30 @@ def create_samples(args):
 
     return samples_train, samples_test
 
-def next_sample(args, samples, i):
+def get_adj_list(samples, n):
+    
+    adj = np.zeros((n, n))
+    adj_list = []
+
+    for sample in samples:
+        u = sample[0]
+        v = sample[1]
+        m = sample[3]
+
+        if m == 0:
+            adj[u][v] = 1
+            adj[v][u] = 1
+        adj_list.append(adj)
+    return adj_list
+
+def next_batch(args, samples, i):
     reshaped = np.reshape(samples[i], len(samples[i]), 1)
-    x = rehspaed[:,-1]
+    x = reshaped[:,-1]
     y = reshaped[:1:]
     return x, y
+
+
+def print_vars(string):
+    '''print variables in collection named string'''
+    print("Collection name %s"%string)
+    print("    "+"\n    ".join(["{} : {}".format(v.name, get_shape(v)) for v in tf.get_collection(string)]))

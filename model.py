@@ -1,11 +1,14 @@
 import tensorflow as tf
 from utils import *
 from cell_new import MPPCell
+import time 
+from datetime import datetime
+import numpy as np
 
 class MPPModel():
-    def __init__(self, args, n, sample=False):
+    def __init__(self, args, sample=False):
 
-        self.n = n
+        self.n = args.n
 
         def tf_likelihood(y, m, l_a, l_c):
             with tf.variable_scope('likelihood'):
@@ -14,9 +17,8 @@ class MPPModel():
                 #m = y[0][2]
                 #t = y[0][3]
                 # zero one vector for the events to occur
-                
-                
                 # event that did not occur
+
                 comp_y = tf.subtract(tf.ones([self.n, self.n]), y)
                 
                 l_a = tf.reshape(l_a, [self.n, self.n])
@@ -29,9 +31,8 @@ class MPPModel():
                 l_c_comp = tf.multiply(comp_y, l_c)
                 
                 #indicator = (1 - m)
-
-                association_loss =  tf.cast([1 - m], tf.float32) * tf.subtract(tf.reduce_sum(l_a_occured), tf.reduce_sum(l_a_comp))
-                communication_loss = tf.cast([m], tf.float32) * tf.subtract(tf.reduce_sum(l_a_occured), tf.reduce_sum(l_a_comp))
+                association_loss =  tf.cast([1 - m], tf.float32) * tf.subtract(tf.log(tf.reduce_sum(l_a_occured)), tf.add(tf.reduce_sum(l_a_comp), tf.reduce_sum(l_c_comp)))
+                communication_loss = tf.cast([m], tf.float32) * tf.subtract(tf.log(tf.reduce_sum(l_c_occured)), tf.add(tf.reduce_sum(l_a_comp), tf.reduce_sum(l_c_comp))) 
                 
                 print "Debug c", communication_loss.get_shape()
                 print "Debug a", association_loss.get_shape()
@@ -68,11 +69,11 @@ class MPPModel():
             print "Debug size enc", enc_zeta_mu.get_shape(), y.get_shape()
             #y = y[0]
             for i in range(args.seq_length):
-                print "Debug i", i
+                print "Debug i", i, l_c[i], l_a[i]
                 kl_loss_zeta = tf_kl_gaussgauss(enc_zeta_mu[i], enc_zeta_sigma[i], prior_zeta_mu[i], prior_zeta_sigma[i])
                 kl_loss_z = tf_kl_gaussgauss(enc_z_mu[i], enc_z_sigma[i], prior_z_mu[i], prior_z_sigma[i])
                 likelihood_loss = tf_likelihood(y[i, :],m[i], l_a[i], l_c[i])
-                loss += tf.reduce_mean(kl_loss_zeta - likelihood_loss)
+                loss += tf.reduce_mean(kl_loss_zeta + kl_loss_z - likelihood_loss)
             return loss
 
         self.args = args
@@ -85,8 +86,7 @@ class MPPModel():
         # MPPCell(args.chunk_samples, args.rnn_size, args.latent_size)
         # self.cell = cell
 
-        self.input_data = tf.placeholder(dtype=tf.int32, shape=[args.batch_size, args.seq_length, 4], name='input_data')
-        
+        self.input_data = tf.placeholder(dtype=tf.int32, shape=[args.batch_size, args.seq_length, 4], name='input_data')        
         self.target_data = tf.placeholder(dtype=tf.float32, shape=[args.seq_length, self.n, self.n], name='target_data')
         self.m = tf.placeholder(dtype=tf.float32, shape=[args.seq_length, 1], name='type_messege')
         
@@ -96,12 +96,13 @@ class MPPModel():
         self.adj_prev = tf.placeholder(dtype=tf.float32, shape=[args.n, args.n], name='prev')
         self.B_old = tf.placeholder(dtype=tf.float32, shape=[args.n_c, args.n_c], name='B')
         self.r_old = tf.placeholder(dtype=tf.float32, shape=[args.n, args.n], name='R')
-        self.time_old = tf.placeholder(dtype=tf.int32, shape=[args.batch_size, args.seq_length, 1], name='T')
+        self.time_cur = tf.placeholder(dtype=tf.int32, shape=[args.batch_size, args.seq_length, 1], name='T')
         
         #Trial
         self.initial_state_t = tf.placeholder(dtype = tf.float32, shape = [1, args.h_dim], name = "s_t")
         self.initial_state_s = tf.placeholder(dtype = tf.float32, shape = [1, args.h_dim], name = "s_c")
-        self.event_indicator = tf.placeholder(dtype = tf.int32, shape = [args.n], name = "indicator")
+        #self.event_indicator = tf.placeholder(dtype = tf.int32, shape = [args.n], name = "indicator")
+
         cell = MPPCell(args, self.adj, self.adj_prev, self.features, self.B_old, self.r_old, self.eps)
         
         self.cell = cell
@@ -128,7 +129,7 @@ class MPPModel():
                     #if time_step > 0:
                     print "time step", time_step
                     tf.get_variable_scope().reuse_variables()
-                    (cell_output, state_h, state_t) = self.cell.new_call(self.input_data[:, time_step, :], self.time_old[:,time_step, :], state)
+                    (cell_output, state_h, state_t) = self.cell.new_call(self.input_data[:, time_step, :], self.time_cur[:,time_step, :], state)
                     state = (state_h, state_t)
                     print "debug output", cell_output
                     outputs.append(cell_output)
@@ -158,49 +159,78 @@ class MPPModel():
         with tf.variable_scope('cost'):
             self.cost = lossfunc 
         
+        print 'cost', self.cost
+        print 'lambda_communication', l_c
+        print 'lambda_association', l_a
+
         tf.summary.scalar('cost', self.cost)
         tf.summary.scalar('lambda_communication', l_c)
         tf.summary.scalar('lambda_association', l_a)
 
         self.lr = tf.Variable(0.0, trainable=False)
         tvars = tf.trainable_variables()
-        for t in tvars:
-            print "trainable vars", t.name
-        
+        print_vars("trainable_variables")
+        #for t in tvars:
+        #    print "trainable vars", t.name
+        t1 = time.time()
         grads = tf.gradients(self.cost, tvars)
+        t2 = time.time()
+        print "After grad:", t2 - t1
         optimizer = tf.train.AdamOptimizer(self.lr)
         self.train_op = optimizer.apply_gradients(zip(grads, tvars))
+        
 
     def sample(self):
         #TBD
         return ""
 
-    def train(self, args):
-        dirname = args.dirname
+    def train(self, args, samples):
+        dirname = args.out_dir
+        print "Time size of graph", len(tf.get_default_graph().get_operations())
 
         ckpt = tf.train.get_checkpoint_state(dirname)
-        n_batches = 100
-        samples = create_sample(args)
 
+        n_batches = len(samples)
+        #sample_train, sample_test = create_sample(args)
+        
         with tf.Session() as sess:
             summary_writer = tf.summary.FileWriter('logs/' + datetime.now().isoformat().replace(':', '-'), sess.graph)
             check = tf.add_check_numerics_ops()
             merged = tf.summary.merge_all()
             tf.global_variables_initializer().run()
             saver = tf.train.Saver(tf.global_variables())
+        
+            initial_state_t = np.zeros([1, args.h_dim])
+            initial_state_s = np.zeros([1, args.h_dim])
+            features = get_one_hot_features(self.n)
+            eps = np.random.randn(args.n, args.z_dim, 1)
+            B_old = np.zeros([args.n_c, args.n_c])
+            r_old = np.zeros([args.n_c, args.n_c])
             if ckpt:
                 saver.restore(sess, ckpt.model_checkpoint_path)
                 print "Loaded model"
             start = time.time()
             for e in xrange(args.num_epochs):
-                sess.run(tf.assign(model.lr, args.learning_rate * (args.decay_rate ** e)))
-                state = model.initial_state_c, model.initial_state_h
+                sess.run(tf.assign(self.lr, args.learning_rate * (args.decay_rate ** e)))                
+                adj_list = [] 
+                adj_list_prev = []
                 for b in xrange(len(samples)):
                     x, y = next_batch(args, samples, b)
-                    feed = {self.input_data: x, self.target_data: y, self.adj: adj}
-                    train_loss, _, cr, summary, sigma, mu, input, target= sess.run(
-                            [self.cost, self.train_op, check, merged, self.sigma, self.mu, self.flat_input, self.target],
-                                                                 feed)
+                    time_next = extract_time(y)
+                    if len(adj_list_prev) > 0:
+                        adj_list_prev[0] = adj_list[-1]
+                    adj_list = get_adjacency_list(x, self.n)
+                    if len(adj_list_prev) > 0:
+                        adj_list_prev[1:] = adj_list[0:-1]
+                    else:
+                        adj_list_prev = [np.zeros((self.n, self.n)), adj_list[:-1]]
+
+                    feed = {self.initial_state_s:initial_state_s, self.initial_state_t:initial_state_t,\
+                    self.input_data: x, self.target_data: y, self.features: features, self.eps:eps, \
+                    self.B_old: B_old, self.r_old: r_old, self.adj: adj_list, self.adj_prev: adj_lis_prev, \
+                    self.time_cur: time_next}
+                    train_loss, _, cr, summary, initial_state_s, initial_state_t, B_old, r_old = sess.run(
+                            [self.cost, self.train_op, check, merged, self.final_state_s, self.final_state_t, self.B_new, self.r_new], feed)
                     summary_writer.add_summary(summary, e * n_batches + b)
                     if (e * n_batches + b) % args.save_every == 0 and ((e * n_batches + b) > 0):
                         checkpoint_path = os.path.join(dirname, 'model.ckpt')
@@ -211,7 +241,30 @@ class MPPModel():
                         .format(e * n_batches + b,
                                 args.num_epochs * n_batches,
                                 e, args.chunk_samples * train_loss, end - start, sigma.mean(axis=0).mean(axis=0))
-            start = time.time()
-            
+                    start = time.time()
+
+    def predict_association(self, test_sample, adj):
+        for b in xrange(len(samples)):
+            x, y = next_batch(args, test_sample, b)
+            feed = {self.input_data: x, self.target_data: y, self.adj: adj}
+            l_c, l_a = self.run([self.l_c, self.l_a], feed)
+            x = y
+            feed = {self.input_data: x, self.target_data: y, self.adj: adj}
+            l_c_n, l_a_n = self.run([self.l_c, self.l_a], feed)
+
+            for i in range(len(l_c)):
+                u = x[0][0]
+                v = x[0][1]
+                #t = x[0][2]
+                #type_m = x[0][3]
+                
+
+                #l_a_n[i][u] l_a[i][u]
+
+
+
+    def predict_fututure(l_a, l_c, ):
+
+        return 0            
 
 
