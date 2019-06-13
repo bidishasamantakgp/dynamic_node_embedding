@@ -8,7 +8,7 @@ from math import exp
 class MPPCell(object):
     """Variational Auto Encoder cell."""
 
-    def __init__(self, args, adj, adj_prev, features, B_old, r_old, eps):
+    def __init__(self, args, features, B_old, r_old, eps):
         
         '''
         Args:
@@ -18,9 +18,9 @@ class MPPCell(object):
         self.n_c = args.n_c
         self.n = args.n
         self.n_h = args.h_dim
-        self.adj = adj
+        #self.adj = adj
         #self.T = t_next
-        self.adj_prev = adj_prev
+        #self.adj_prev = adj_prev
         self.d = args.d_dim
         self.k = args.k
         self.B_old = B_old
@@ -32,7 +32,7 @@ class MPPCell(object):
         self.lstm_t = tf.contrib.rnn.LSTMCell(self.n_h, state_is_tuple=True)
 
 
-    def new_call(self, x, t_next, state, scope=None):
+    def new_call(self, x, adj, adj_prev, t_next, state, scope=None):
         
         '''
 	Args:
@@ -63,16 +63,16 @@ class MPPCell(object):
         with tf.variable_scope(scope or type(self).__name__, reuse=tf.AUTO_REUSE):
             with tf.variable_scope("Prior"):
                 h_inter = fc_layer(h_t, self.n_h, scope="intermidiate")
-                y = input_layer(self.adj_prev, self.features, k, self.n, self.d)
+                y = input_layer(adj_prev, self.features, k, self.n, self.d)
                 y_s = []
                 y_t = []
                 for i in range(self.n):
                     print "Debug y_i", y[i].dtype, h_s.dtype, y.get_shape(), h_s.get_shape()
                     y_s.append(tf.concat([y[i], h_s], axis=1))
                     print "Debug y_s shape", y_s[i].get_shape()
-                    temp1 = tf.gather_nd(self.adj_prev, (i, u))
+                    temp1 = tf.gather_nd(adj_prev, (i, u))
                     temp2 = tf.gather(y, u)
-                    temp3 = tf.gather_nd(self.adj_prev, (i,v))
+                    temp3 = tf.gather_nd(adj_prev, (i,v))
                     temp4 = tf.gather(y, v)
                     temp5 = tf.multiply(temp1, temp2)
                     temp6 = tf.multiply(temp3, temp4)
@@ -111,7 +111,7 @@ class MPPCell(object):
                 # self.adj[u][v] = 1
                 # self.adj[v][u] = 1
                 
-                y_current = input_layer(self.adj, self.features, k, self.n, self.d)
+                y_current = input_layer(adj, self.features, k, self.n, self.d)
                 
                 y_s = []
                 y_t = []
@@ -125,9 +125,9 @@ class MPPCell(object):
                     val_tf = tf.convert_to_tensor([[( 1 - type_m) * t]])
                     print "Debu val_tf", val_tf.get_shape(), val_tf
                     y_s.append(tf.concat([y_current[i], h_s, tf.dtypes.cast(val_tf, tf.float32)], axis = 1))
-                    temp1 = tf.gather_nd(self.adj, (i, u))
+                    temp1 = tf.gather_nd(adj, (i, u))
                     temp2 = tf.gather(y_current, u)
-                    temp3 = tf.gather_nd(self.adj, (i,v))
+                    temp3 = tf.gather_nd(adj, (i,v))
                     temp4 = tf.gather(y_current, v)
                     temp5 = tf.multiply(temp1, temp2)
                     temp6 = tf.multiply(temp3, temp4)
@@ -191,14 +191,14 @@ class MPPCell(object):
                 r_hidden = fc_layer(tf.concat([h_t, tf.transpose(tf.gather(zeta, u)), tf.transpose(tf.gather(zeta, v))], axis=1), 1, activation=tf.nn.softplus, scope="R_hidden" )
 
                 a = tf.cast(type_m, tf.float32) * r_hidden
-                print "Debug intermediate step", a.get_shape()
+                #print "Debug intermediate step", a.get_shape()
                 second = tf.fill(value = a[0][0], dims = [self.n, self.n])
 
                 first = tf.multiply(tf.fill(value = tf.cast(1 - type_m, tf.float32) , dims = [self.n, self.n]), self.r_old)
-                print "Debug first", first.get_shape(), second.get_shape()
+                #print "Debug first", first.get_shape(), second.get_shape()
                 r = tf.add(first, second)
-                print "Debug r size", r.get_shape() 
-                P = tf.multiply(tf.subtract(tf.ones([self.n, self.n]), self.adj), (self.alpha * tf.matmul(c, tf.matmul(B, tf.transpose(c))) + (1 - self.alpha) * r))
+                #print "Debug r size", r.get_shape() 
+                P = tf.multiply(tf.subtract(tf.ones([self.n, self.n]), adj), (self.alpha * tf.matmul(c, tf.matmul(B, tf.transpose(c))) + (1 - self.alpha) * r))
                 lambda_association = []
                 lambda_communication = []
                 for i in range(self.n):
@@ -227,7 +227,7 @@ class MPPCell(object):
             c, h_t_new = s_t
             c, h_s_new = s_s
              
-        return (l_c, l_a, enc_zeta_mu, enc_z_mu, enc_zeta_sigma, enc_z_sigma, prior_zeta_mu, prior_z_mu, prior_zeta_sigma, prior_z_sigma), (h_t_new, h_s_new)
+        return (l_c, l_a, enc_zeta_mu, enc_z_mu, enc_zeta_sigma, enc_z_sigma, prior_zeta_mu, prior_z_mu, prior_zeta_sigma, prior_z_sigma, B, r), h_t_new, h_s_new
 
     def call(self, x, state):
         return self.__call__(x, state)

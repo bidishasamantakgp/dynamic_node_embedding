@@ -3,10 +3,12 @@ import pickle
 import tensorflow as tf
 import numpy as np
 
-def extract_time(samples):
+def extract_time(args, samples):
     time = []
-    for sample in samples:
-        time.append(sample[2])
+    #for sample in samples:
+    for i in range(args.seq_length):
+        time.append(samples[0][i][2])
+    time = np.resize(np.stack(time), (args.batch_size, args.seq_length, 1))
     return time
 
 
@@ -41,8 +43,10 @@ def get_adjacency_list(samples, n):
     
     adj = np.zeros((n, n))
     adj_list = []
-
-    for sample in samples:
+    s = samples.shape[1]
+    for i in range(s):
+    #for sample in samples:
+        sample = samples[0][i]
         u = sample[0]
         v = sample[1]
         m = sample[3]
@@ -54,9 +58,12 @@ def get_adjacency_list(samples, n):
     return adj_list
 
 def next_batch(args, samples, i):
-    #reshaped = np.reshape(samples[i], [len(samples[i]), 1])
-    x = samples[i][:-1]
-    y = samples[i][1:]
+    reshaped = np.reshape(samples[i], [args.batch_size, args.seq_length, -1])
+    
+    #x = samples[i][:-1]
+    x = reshaped[:, :, :-1]
+    #y = samples[i][1:]
+    y = reshaped[:, :, 1:]
     return x, y
 
 
