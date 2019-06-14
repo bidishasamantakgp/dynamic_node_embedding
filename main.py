@@ -65,5 +65,6 @@ if __name__ == '__main__':
     data_train, data_test = create_samples(args)
     t2 = time.time()
     print "data loading done", t2-t1, len(data_train), data_train[0]
-    print next_batch(args, data_train,0)
+    #x, y = next_batch(args, data_train, 0)
+    #print x, y
     model.train(args, data_train)

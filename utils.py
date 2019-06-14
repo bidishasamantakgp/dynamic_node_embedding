@@ -30,6 +30,8 @@ def create_samples(args):
     samples_test = []
 
     for i in range(0, len(train_data), args.seq_length):
+        #if i + args.seq_length < len(train_data):
+
         sample = train_data[i : i + args.seq_length + 1]
         samples_train.append(sample)
     
@@ -58,12 +60,14 @@ def get_adjacency_list(samples, n):
     return adj_list
 
 def next_batch(args, samples, i):
-    reshaped = np.reshape(samples[i], [args.batch_size, args.seq_length, -1])
-    
+    reshaped = np.reshape(samples[i], [args.batch_size, args.seq_length+1, -1])
+    #print reshaped.shape, samples[i]
     #x = samples[i][:-1]
-    x = reshaped[:, :, :-1]
+    x = reshaped[:, :-1, :]
+    #print "x", x.shape
     #y = samples[i][1:]
-    y = reshaped[:, :, 1:]
+    y = reshaped[:, 1:, :]
+    #print "y", y.shape
     return x, y
 
 
