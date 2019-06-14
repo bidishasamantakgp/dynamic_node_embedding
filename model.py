@@ -201,6 +201,7 @@ class MPPModel():
         return ""
 
     def train(self, args, samples):
+
         dirname = args.out_dir
         print "Time size of graph", len(tf.get_default_graph().get_operations())
 
@@ -210,7 +211,7 @@ class MPPModel():
         #sample_train, sample_test = create_sample(args)
         config = tf.ConfigProto(
         allow_soft_placement=True,
-        log_device_placement=True
+        log_device_placement=False
         )
         config.gpu_options.allow_growth = True
 
@@ -230,6 +231,7 @@ class MPPModel():
             B_old = np.zeros([args.n_c, args.n_c])
             r_old = np.zeros([args.n, args.n])
 
+            adj_old = starting_adj(args, samples)
             if ckpt:
                 saver.restore(sess, ckpt.model_checkpoint_path)
                 print "Loaded model"
@@ -244,11 +246,14 @@ class MPPModel():
                     time_next = extract_time(args, y)
                     if len(adj_list_prev) > 0:
                         adj_list_prev[0] = adj_list[-1]
-                    adj_list = get_adjacency_list(x, self.n)
+                    adj_list = get_adjacency_list(x, adj_old, self.n)
+
                     if len(adj_list_prev) > 0:
-                        adj_list_prev[1:] = adj_list[0:-1]
+                        adj_list_prev[1:] = adj_list[:-1]
                     else:
-                        adj_list_prev = [np.zeros((self.n, self.n)), adj_list[:-1]]
+                        adj_list_prev = [np.zeros((self.n, self.n))]
+
+                    adj_old = adj_list[-1]
 
                     feed = {self.initial_state_s:initial_state_s, self.initial_state_t:initial_state_t,\
                     self.input_data: x, self.target_data: y, self.features: features, self.eps:eps, \
