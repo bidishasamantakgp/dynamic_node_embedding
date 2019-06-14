@@ -124,7 +124,7 @@ class MPPCell(object):
                     print val.shape, val
                     val_tf = tf.convert_to_tensor([[( 1 - type_m) * t]])
                     print "Debu val_tf", val_tf.get_shape(), val_tf
-                    y_s.append(tf.concat([y_current[i], h_s, tf.dtypes.cast(val_tf, tf.float32)], axis = 1))
+                    y_s.append(tf.concat([y_current[i], h_s, tf.cast(val_tf, tf.float32)], axis = 1))
                     temp1 = tf.gather_nd(adj, (i, u))
                     temp2 = tf.gather(y_current, u)
                     temp3 = tf.gather_nd(adj, (i,v))
@@ -137,7 +137,7 @@ class MPPCell(object):
                     first = tf.concat([y[i], intermediate, h_inter], axis=1)
                     second = tf.concat([tf.zeros([1, 2 * self.d]),h_inter], axis=1)
                     m_t = tf.convert_to_tensor([[type_m * t]])
-                    y_t.append(tf.concat([tf.add(first, second), tf.dtypes.cast(m_t, tf.float32)], axis = 1))
+                    y_t.append(tf.concat([tf.add(first, second), tf.cast(m_t, tf.float32)], axis = 1))
 
                 y_s_stack = tf.reshape(tf.stack(y_s), [self.n,-1])
                 y_t_stack = tf.reshape(tf.stack(y_t), [self.n, -1])

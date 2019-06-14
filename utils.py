@@ -3,6 +3,7 @@ import pickle
 import tensorflow as tf
 import numpy as np
 
+
 def extract_time(args, samples):
     time = []
     #for sample in samples:
@@ -22,10 +23,27 @@ def get_shape(tensor):
 def load_data(filename):
     return pickle.load(open(filename))
 
+def starting_adj(args, samples):
+    input_data = load_data(args.data_file)
+    adj = np.zeros(args.n, args.n)
+    
+    for i in range(4266):
+    #for sample in samples:
+        sample = input_data[i]
+        u = sample[0]
+        v = sample[1]
+        m = sample[3]
+
+        if m == 0:
+            adj[u][v] = 1
+            adj[v][u] = 1
+
+    return adj
+
 def create_samples(args):
     input_data = load_data(args.data_file)
-    train_data = input_data[:args.train_size]
-    test_data = input_data[args.train_size:]
+    train_data = input_data[4266:args.train_size]
+    test_data = input_data[args.train_size+4266:]
     samples_train = []
     samples_test = []
 
@@ -41,9 +59,7 @@ def create_samples(args):
 
     return samples_train, samples_test
 
-def get_adjacency_list(samples, n):
-    
-    adj = np.zeros((n, n))
+def get_adjacency_list(samples, adj, n):
     adj_list = []
     s = samples.shape[1]
     for i in range(s):
