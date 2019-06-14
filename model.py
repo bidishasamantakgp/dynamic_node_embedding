@@ -58,7 +58,9 @@ class MPPModel():
         def tf_kl_gaussgauss(mu_1, sigma_1, mu_2, sigma_2):
             
             k = tf.fill([self.n], tf.cast(args.z_dim, tf.float32))
-            with tf.variable_scope("kl_gaussisan"):
+            print "debug mu, sigma", mu_1, sigma_1
+	    print "debug mu, sigma", mu_2, sigma_2
+	    with tf.variable_scope("kl_gaussisan"):
                 sigma_1_sigma_2 = []
                 sigma_mu_sigma = []
                 det = []
@@ -210,8 +212,8 @@ class MPPModel():
         #sample_train, sample_test = create_sample(args)
         config = tf.ConfigProto(
         allow_soft_placement=True,
-        log_device_placement=True
-        )
+        log_device_placement=False      
+	)
         config.gpu_options.allow_growth = True
 
         with tf.Session(config=config) as sess:
