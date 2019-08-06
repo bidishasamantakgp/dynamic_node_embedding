@@ -3,6 +3,49 @@ import pickle
 import tensorflow as tf
 import numpy as np
 
+def dummy_kl_gaussgauss(args, mu_1, sigma_1, mu_2, sigma_2):
+	k = np.zeros([args.n])
+	k.fill(args.z_dim)
+
+	sigma_2_sigma_1 = []
+	sigma_mu_sigma = []
+        det = []
+	for i in range(args.n):
+                    sigma_2_inv = np.linalg.inv(sigma_2[i])
+                    print "Debug sigma_2_inv", sigma_2_inv
+		    sigma_2_sigma_1.append(np.trace(np.multiply( sigma_2_inv, sigma_1[i])))
+                    print "Debug sigma_2_sigma_1:", sigma_2_sigma_1[i]
+		    mu_diff = np.subtract(mu_2[i], mu_1[i])
+		    print "Debug mu_diff:", mu_diff
+                    sigma_mu_sigma.append(np.matmul(np.matmul(np.transpose(mu_diff), sigma_2_inv), mu_diff))
+                    print "Debug sigma_mu_sigma:", sigma_mu_sigma[i]
+		    
+		    det.append(np.log(np.maximum(np.linalg.det(sigma_2), 1e-09)) - np.log(np.maximum(np.linalg.det(sigma_1), 1e-09)))
+		    print "Debug det:", det[i]
+        first_term = np.stack(sigma_2_sigma_1)
+        second_term = np.stack(sigma_mu_sigma)
+        third_term = np.stack(det)
+	print "Debug terms:", first_term, second_term, third_term
+        #print "Debug size", first_term.get_shape(), second_term.get_shape(), third_term.get_shape()
+        #k = tf.fill([self.n], tf.cast(args.z_dim, tf.float32))
+        return -np.sum(0.5 *(first_term + second_term + (third_term) - k))
+
+def dummy_features(adj, feature, k, n, d):
+    w_in = np.zeros([k, d, d])
+    w_in.fill(0.5)
+    #tf.get_variable(name="w_in", shape=[k,d,d], initializer=tf.constant_initializer(0.5))
+    #w_in = tf.Print(w_in,[w_in], message="my w_in-values:")
+    output_list = []
+
+    for i in range(k):
+            if i > 0:
+                output_list.append( np.multiply(np.transpose(np.matmul(w_in[i], np.transpose(feature))), np.matmul(adj, output_list[i-1])))
+            else:
+                output_list.append(np.transpose(np.matmul(w_in[i], np.transpose(feature))))
+            print "Debug output_list"
+            print output_list[i]
+            
+    return np.reshape(output_list[-1],[n, 1, d])
 
 def extract_time(args, samples):
     time = []
@@ -25,13 +68,13 @@ def load_data(filename):
 
 def starting_adj(args, samples):
     input_data = load_data(args.data_file)
-    adj = np.zeros(args.n, args.n)
+    adj = np.zeros([args.n, args.n])
     
     for i in range(4266):
     #for sample in samples:
         sample = input_data[i]
-        u = sample[0]
-        v = sample[1]
+        u = int(sample[0] - 1)
+        v = int(sample[1] - 1)
         m = sample[3]
 
         if m == 0:
@@ -42,7 +85,8 @@ def starting_adj(args, samples):
 
 def create_samples(args):
     input_data = load_data(args.data_file)
-    train_data = input_data[4266:args.train_size]
+    input_data = [(int(u-1), int(v-1), t, m) for (u, v, t, m) in input_data]
+    train_data = input_data[4266:args.train_size+4266]
     test_data = input_data[args.train_size+4266:]
     samples_train = []
     samples_test = []
@@ -65,10 +109,11 @@ def get_adjacency_list(samples, adj, n):
     for i in range(s):
     #for sample in samples:
         sample = samples[0][i]
-        u = sample[0]
-        v = sample[1]
+	u = int(sample[0])
+        v = int(sample[1])
         m = sample[3]
-
+	
+	print "debug u, v", u, v
         if m == 0:
             adj[u][v] = 1
             adj[v][u] = 1

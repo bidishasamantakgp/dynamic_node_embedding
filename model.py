@@ -14,8 +14,9 @@ class MPPModel():
             with tf.variable_scope('likelihood'):
                 u = y[0][0]
                 v = y[0][1]
-                m = y[0][2]
-                t = y[0][3]
+                m = y[0][3]
+                t = y[0][2]
+
                 # zero one vector for the events to occur
                 # event that did not occur
 
@@ -44,37 +45,40 @@ class MPPModel():
                 
                 #indicator = (1 - m)
                 
-                association_loss =  tf.cast([1 - m], tf.float32) * tf.subtract(tf.log(l_a_occured), tf.add(l_a_comp, l_c_comp))
-                communication_loss = tf.cast([m], tf.float32) * tf.subtract(tf.log(l_c_occured), tf.add(l_a_comp, l_c_comp)) 
+                association_loss =  tf.cast([1 - m], tf.float32) * tf.subtract(tf.log(tf.maximum(l_a_occured, 1e-09)), tf.add(l_a_comp, l_c_comp))
+                communication_loss = tf.cast([m], tf.float32) * tf.subtract(tf.log(tf.maximum(l_c_occured, 1e-09)), tf.add(l_a_comp, l_c_comp)) 
                 
-                print "Debug shapes", l_a_occured.get_shape(), l_c_occured.get_shape(), l_a_comp.get_shape(), l_c_comp.get_shape(), association_loss.get_shape(), communication_loss.get_shape()
+                #print "Debug shapes", l_a_occured.get_shape(), l_c_occured.get_shape(), l_a_comp.get_shape(), l_c_comp.get_shape(), association_loss.get_shape(), communication_loss.get_shape()
                 #print "Debug c", communication_loss.get_shape()
                 #print "Debug a", association_loss.get_shape()
-                ll = association_loss + communication_loss 
-                tf.summary.scalar('ll', ll)
                 
-                return ll
+		ll = association_loss + communication_loss 
+                tf.summary.tensor_summary('ll', ll)
+                
+                return (association_loss, communication_loss, ll)
 
         def tf_kl_gaussgauss(mu_1, sigma_1, mu_2, sigma_2):
             
             k = tf.fill([self.n], tf.cast(args.z_dim, tf.float32))
-            print "debug mu, sigma", mu_1, sigma_1
-	    print "debug mu, sigma", mu_2, sigma_2
+            #print "debug mu, sigma", mu_1, sigma_1
+	    #print "debug mu, sigma", mu_2, sigma_2
+	   
 	    with tf.variable_scope("kl_gaussisan"):
-                sigma_1_sigma_2 = []
+                sigma_2_sigma_1 = []
                 sigma_mu_sigma = []
                 det = []
                 
                 for i in range(self.n):
-                    sigma_1_inv = tf.linalg.inv(sigma_2[i])
-                    sigma_1_sigma_2.append(tf.trace(tf.multiply( sigma_1_inv, sigma_1[i])))
+                    sigma_2_inv = tf.linalg.inv(sigma_2[i])
+                    sigma_2_sigma_1.append(tf.trace(tf.multiply( sigma_2_inv, sigma_1[i])))
                     mu_diff = tf.subtract(mu_1[i], mu_2[i])
-                    sigma_mu_sigma.append(tf.matmul(tf.matmul(tf.transpose(mu_diff), sigma_1_inv), mu_diff))
-                    det.append(tf.log(tf.maximum(tf.linalg.det(sigma_2), 1e-09) - tf.log(tf.maximum(tf.linalg.det(sigma_1), 1e-09))))
-                first_term = tf.stack(sigma_1_sigma_2)
+                    sigma_mu_sigma.append(tf.matmul(tf.matmul(tf.transpose(mu_diff), sigma_2_inv), mu_diff))
+                    det.append(tf.log(tf.maximum(tf.linalg.det(sigma_2), 1e-09)) - tf.log(tf.maximum(tf.linalg.det(sigma_1), 1e-09)))
+                
+		first_term = tf.stack(sigma_2_sigma_1)
                 second_term = tf.stack(sigma_mu_sigma)
                 third_term = tf.stack(det)
-                print "Debug size", first_term.get_shape(), second_term.get_shape(), third_term.get_shape()
+                #print "Debug size", first_term.get_shape(), second_term.get_shape(), third_term.get_shape()
                 k = tf.fill([self.n], tf.cast(args.z_dim, tf.float32))
                 return tf.reduce_sum(0.5 *(first_term + second_term + (third_term) - k))
 
@@ -85,12 +89,24 @@ class MPPModel():
             #print "Debug size enc", enc_zeta_mu.get_shape(), y.get_shape()
             #y = y[0]
             y = tf.transpose(y, [1,0,2] )
-            for i in range(args.seq_length):
-                print "Debug i", i, l_c[i], l_a[i]
+            
+            self.kl_loss_zeta_list = []
+	    self.kl_loss_z_list = []
+	    self.ll_list = []
+	    self.a_l_list = []
+	    self.c_l_list = []
+
+	    for i in range(args.seq_length):
+                #print "Debug i", i, l_c[i], l_a[i]
                 kl_loss_zeta = tf_kl_gaussgauss(enc_zeta_mu[i], enc_zeta_sigma[i], prior_zeta_mu[i], prior_zeta_sigma[i])
                 kl_loss_z = tf_kl_gaussgauss(enc_z_mu[i], enc_z_sigma[i], prior_z_mu[i], prior_z_sigma[i])
-                likelihood_loss = tf_likelihood(y[i],l_a[i], l_c[i])
-                loss += tf.reduce_mean(kl_loss_zeta + kl_loss_z - likelihood_loss)
+                self.kl_loss_zeta_list.append(kl_loss_zeta)
+		self.kl_loss_z_list.append(kl_loss_z)
+		a_l, c_l, likelihood_loss = tf_likelihood(y[i],l_a[i], l_c[i])
+                self.ll_list.append(likelihood_loss)
+		self.a_l_list.append(a_l)
+		self.c_l_list.append(c_l)
+		loss += tf.reduce_mean(kl_loss_zeta + kl_loss_z - likelihood_loss)
             return loss
 
         self.args = args
@@ -121,7 +137,7 @@ class MPPModel():
         self.initial_state_s = tf.placeholder(dtype = tf.float32, shape = [1, args.h_dim], name = "s_c")
         #self.event_indicator = tf.placeholder(dtype = tf.int32, shape = [args.n], name = "indicator")
         with tf.device('/device:GPU:1'):
-            cell = MPPCell(args, self.features, self.B_old, self.r_old, self.eps)
+         cell = MPPCell(args, self.features, self.B_old, self.r_old, self.eps)
         
         self.cell = cell
         #debug_state_size = cell.zero_state(batch_size=args.batch_size, dtype=tf.float32)
@@ -155,7 +171,7 @@ class MPPModel():
         #outputs, last_state = tf.contrib.rnn.static_rnn(self.cell, inputs, initial_state=list_debug)
         
         outputs_reshape = []
-        names = ["l_c", "l_a", "enc_zeta_mu", "enc_z_mu", "enc_z_sigma", "enc_zeta_sigma", "prior_z_mu", "prior_zeta_mu", "prior_z_sigma", "prior_zeta_sigma", "B", "r"]
+        names = ["y", "y_cuurent", "l_c", "l_a", "enc_zeta_mu", "enc_z_mu", "enc_z_sigma", "enc_zeta_sigma", "prior_z_mu", "prior_zeta_mu", "prior_z_sigma", "prior_zeta_sigma", "B", "r"]
         
         for n,name in enumerate(names):
             with tf.variable_scope(name):
@@ -164,12 +180,12 @@ class MPPModel():
                 #x = tf.reshape(x,[args.batch_size*args.seq_length, -1])
                 outputs_reshape.append(x)
 
-        l_c, l_a, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma, self.B_new, self.r_new = outputs_reshape
+        self.y, self.y_current, l_c, l_a, self.enc_zeta_mu, self.enc_z_mu, self.enc_zeta_sigma, self.enc_z_sigma, self.prior_zeta_mu, self.prior_z_mu, self.prior_zeta_sigma, self.prior_z_sigma, self.B_new, self.r_new = outputs_reshape
         self.final_state_t, self.final_state_s = state
         #self.mu = dec_mu
         #self.sigma = dec_sigma
         #print "Debug size before the lossfunc", enc_zeta_mu
-        lossfunc = get_lossfunc(l_c, l_a, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma, self.target_data)
+        lossfunc = get_lossfunc(l_c, l_a, self.enc_zeta_mu, self.enc_z_mu, self.enc_z_sigma, self.enc_zeta_sigma, self.prior_z_mu, self.prior_zeta_mu, self.prior_z_sigma, self.prior_zeta_sigma, self.target_data)
         
         self.l_c = l_c
         self.l_a = l_a
@@ -181,9 +197,9 @@ class MPPModel():
         #print 'lambda_communication', l_c
         #print 'lambda_association', l_a
 
-        tf.summary.scalar('cost', self.cost)
-        tf.summary.scalar('lambda_communication', l_c)
-        tf.summary.scalar('lambda_association', l_a)
+        tf.summary.tensor_summary('cost', self.cost)
+        tf.summary.tensor_summary('lambda_communication', l_c)
+        tf.summary.tensor_summary('lambda_association', l_a)
 
         self.lr = tf.Variable(0.0, trainable=False)
         tvars = tf.trainable_variables()
@@ -203,8 +219,9 @@ class MPPModel():
         return ""
 
     def train(self, args, samples):
+
         dirname = args.out_dir
-        print "Time size of graph", len(tf.get_default_graph().get_operations())
+        #print "Time size of graph", len(tf.get_default_graph().get_operations())
 
         ckpt = tf.train.get_checkpoint_state(dirname)
 
@@ -219,7 +236,7 @@ class MPPModel():
         with tf.Session(config=config) as sess:
         #with tf.Session() as sess:
             summary_writer = tf.summary.FileWriter('logs/' + datetime.now().isoformat().replace(':', '-'), sess.graph)
-            check = tf.add_check_numerics_ops()
+            #check = tf.add_check_numerics_ops()
             merged = tf.summary.merge_all()
             tf.global_variables_initializer().run()
             saver = tf.train.Saver(tf.global_variables())
@@ -232,12 +249,14 @@ class MPPModel():
             B_old = np.zeros([args.n_c, args.n_c])
             r_old = np.zeros([args.n, args.n])
 
+            adj_old = starting_adj(args, samples)
             if ckpt:
                 saver.restore(sess, ckpt.model_checkpoint_path)
                 print "Loaded model"
             start = time.time()
             for e in xrange(args.num_epochs):
-                sess.run(tf.assign(self.lr, args.learning_rate * (args.decay_rate ** e)))                
+                print "Size of graph", len(tf.get_default_graph().get_operations())
+		sess.run(tf.assign(self.lr, args.learning_rate * (args.decay_rate ** e)))                
                 adj_list = [] 
                 adj_list_prev = []
                 for b in xrange(len(samples)):
@@ -246,29 +265,68 @@ class MPPModel():
                     time_next = extract_time(args, y)
                     if len(adj_list_prev) > 0:
                         adj_list_prev[0] = adj_list[-1]
-                    adj_list = get_adjacency_list(x, self.n)
-                    if len(adj_list_prev) > 0:
-                        adj_list_prev[1:] = adj_list[0:-1]
-                    else:
-                        adj_list_prev = [np.zeros((self.n, self.n)), adj_list[:-1]]
+                    adj_list = get_adjacency_list(x, adj_old, self.n)
 
+                    if len(adj_list_prev) > 0:
+                        adj_list_prev[1:] = adj_list[:-1]
+                    else:
+                        adj_list_prev = [np.zeros((self.n, self.n))].append(adj_list[:-1])
+		    
+		    #print "Debug adj list_prev:", adj_list_prev
+		    #print "Debug adj_list:", adj_list
+		    
+		    print "Debug adj_list_prev:"
+		    for i_index in range(84):
+			print adj_list_prev[0][i_index]
+
+                    print "Debug adj_list:"
+                    for i_index in range(84):
+                        print adj_list[0][i_index]
+		    
+		    adj_old = adj_list[-1]
+             
                     feed = {self.initial_state_s:initial_state_s, self.initial_state_t:initial_state_t,\
                     self.input_data: x, self.target_data: y, self.features: features, self.eps:eps, \
                     self.B_old: B_old, self.r_old: r_old, self.adj: adj_list, self.adj_prev: adj_list_prev, \
                     self.time_cur: time_next}
-                    train_loss, _, cr, summary, initial_state_s, initial_state_t, B_old, r_old = sess.run(
-                            [self.cost, self.train_op, check, merged, self.final_state_s, self.final_state_t, self.B_new, self.r_new], feed)
+                    y, y_current, a_l, c_l, l_a, l_c, ll_list, kl_loss_zeta_list, kl_loss_z_list, enc_zeta_mu, enc_z_mu, enc_z_sigma, enc_zeta_sigma, prior_z_mu, prior_zeta_mu, prior_z_sigma, prior_zeta_sigma = sess.run(
+		    [self.y, self.y_current, self.a_l_list, self.c_l_list, self.l_a, self.l_c, self.ll_list, self.kl_loss_zeta_list, self.kl_loss_z_list ,self.enc_zeta_mu, self.enc_z_mu, self.enc_z_sigma, self.enc_zeta_sigma, self.prior_z_mu, self.prior_zeta_mu, self.prior_z_sigma, self.prior_zeta_sigma], feed)
+		    #mu_enc, sigma_enc, prior_mu, prior_sigma = sess.run(
+		    '''
+		    print "Debug l_a:", l_a
+		    print "Debug l_c:", l_c
+		    print "Debug association_loss:", a_l
+		    print "Debug communication_loss:", c_l
+		    print "Debug y:", y
+		    print "Debug y_current:", y_current
+		    print "Debug ll_list:", ll_list
+		    print "Debug kl_zeta:", kl_loss_zeta_list
+		    print "Debug kl_z:", kl_loss_z_list
+		    print "Debug enc_zeta_mu:", enc_zeta_mu
+		    print "Debug enc_z_mu:", enc_z_mu 
+		    print "Debug enc_z_sigma:", enc_z_sigma
+		    print "Debug enc_zeta_sigma:", enc_zeta_sigma
+		    print "Debug prior_z_mu:", prior_z_mu
+		    print "Debug prior_zeta_mu:", prior_zeta_mu 
+		    print "Debug prior_z_sigma:", prior_z_sigma
+		    print "Debug prior_zeta_sigma:", prior_zeta_sigma
+		    '''
+
+		    train_loss, cr, summary, initial_state_s, initial_state_t, B_old, r_old = sess.run(
+                            [self.cost, self.train_op, merged, self.final_state_s, self.final_state_t, self.B_new, self.r_new], feed)
                     summary_writer.add_summary(summary, e * n_batches + b)
                     if (e * n_batches + b) % args.save_every == 0 and ((e * n_batches + b) > 0):
                         checkpoint_path = os.path.join(dirname, 'model.ckpt')
                         saver.save(sess, checkpoint_path, global_step=e * n_batches + b)
                         print "model saved to {}".format(checkpoint_path)
                     end = time.time()
-                    print "{}/{} (epoch {}), train_loss = {:.6f}, time/batch = {:.1f}, std = {:.3f}" \
+                    print "{}/{} (epoch {}), train_loss = {:.6f}, time/batch = {:.1f}" \
                         .format(e * n_batches + b,
                                 args.num_epochs * n_batches,
-                                e, args.chunk_samples * train_loss, end - start, sigma.mean(axis=0).mean(axis=0))
+                                e, args.seq_length * train_loss, end - start)
                     start = time.time()
+		    B_old = np.reshape(B_old, [args.n_c, args.n_c])
+		    r_old = np.reshape(r_old, [args.n, args.n])
 
     def predict_association(self, test_sample, adj):
         for b in xrange(len(samples)):

@@ -7,6 +7,7 @@ import os
 import argparse
 import logging
 import time
+import copy
 
 logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m%d %H:%M:%S")
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ if __name__ == '__main__':
     parser = add_arguments()
     args = parser.parse_args()
     t1 = time.time()
-
+    
     #with tf.device('/device:GPU:0'):
     model = MPPModel(args)
 
@@ -65,6 +66,44 @@ if __name__ == '__main__':
     data_train, data_test = create_samples(args)
     t2 = time.time()
     print "data loading done", t2-t1, len(data_train), data_train[0]
+    
     #x, y = next_batch(args, data_train, 0)
     #print x, y
+    '''
+    adj_list_prev = []
+    adj_list = []
+    samples = data_train[:2]
+    adj_old = starting_adj(args, samples)
+    for b in xrange(len(samples)):
+                    x, y = next_batch(args, samples, b)
+                    #x = np.reshape(x, [])
+                    time_next = extract_time(args, y)
+                    if len(adj_list_prev) > 0:
+                        adj_list_prev[0] = copy.copy(adj_list[-1])
+                    adj_list = get_adjacency_list(x, adj_old, args.n)
+
+                    if len(adj_list_prev) > 0:
+                        adj_list_prev[1:] = copy.copy(adj_list[:-1])
+                    else:
+                        adj_list_prev = [np.zeros((args.n, args.n))]
+
+                    #print "Debug adj list_prev:", adj_list_prev
+                    #print "Debug adj_list:", adj_list
+
+                    print "Debug adj_list_prev:"
+                    for i_index in range(84):
+                        print adj_list_prev[0][i_index]
+
+                    print "Debug adj_list:"
+                    for i_index in range(84):
+                        print adj_list[0][i_index]
+		
+		    print "Debug adj_list ones:", len(adj_list), np.count_nonzero(adj_list[0])
+		    print "Debug adj_list_prev ones:", len(adj_list_prev), np.count_nonzero(adj_list_prev[0])		
+		    adj_old = adj_list[-1]
+                    print "Debug adj_old ones:", np.count_nonzero(adj_old)
+		    features = get_one_hot_features(args.n)
+		    print "Features", features
+		    print dummy_features(adj_list[0], features, 5, 84, 84)
+    '''
     model.train(args, data_train)
