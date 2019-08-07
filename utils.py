@@ -4,28 +4,26 @@ import tensorflow as tf
 import numpy as np
 
 def dummy_kl_gaussgauss(args, mu_1, sigma_1, mu_2, sigma_2):
-	k = np.zeros([args.n])
-	k.fill(args.z_dim)
+        k = np.zeros([args.n])
+        k.fill(args.z_dim)
 
-	sigma_2_sigma_1 = []
-	sigma_mu_sigma = []
+        sigma_2_sigma_1 = []
+        sigma_mu_sigma = []
         det = []
-	for i in range(args.n):
+        for i in range(args.n):
                     sigma_2_inv = np.linalg.inv(sigma_2[i])
-                    print "Debug sigma_2_inv", sigma_2_inv
-		    sigma_2_sigma_1.append(np.trace(np.multiply( sigma_2_inv, sigma_1[i])))
-                    print "Debug sigma_2_sigma_1:", sigma_2_sigma_1[i]
-		    mu_diff = np.subtract(mu_2[i], mu_1[i])
-		    print "Debug mu_diff:", mu_diff
+                    #print "Debug sigma_2_inv", sigma_2_inv
+                    sigma_2_sigma_1.append(np.trace(np.multiply( sigma_2_inv, sigma_1[i])))
+                    #print "Debug sigma_2_sigma_1:", sigma_2_sigma_1[i]
+                    mu_diff = np.subtract(mu_2[i], mu_1[i])
+                    #print "Debug mu_diff:", mu_diff
                     sigma_mu_sigma.append(np.matmul(np.matmul(np.transpose(mu_diff), sigma_2_inv), mu_diff))
-                    print "Debug sigma_mu_sigma:", sigma_mu_sigma[i]
-		    
-		    det.append(np.log(np.maximum(np.linalg.det(sigma_2), 1e-09)) - np.log(np.maximum(np.linalg.det(sigma_1), 1e-09)))
-		    print "Debug det:", det[i]
+                    #print "Debug sigma_mu_sigma:", sigma_mu_sigma[i]
+
+                    det.append(np.log(np.maximum(np.linalg.det(sigma_2), 1e-09)) - np.log(np.maximum(np.linalg.det(sigma_1), 1e-09)))
         first_term = np.stack(sigma_2_sigma_1)
         second_term = np.stack(sigma_mu_sigma)
         third_term = np.stack(det)
-	print "Debug terms:", first_term, second_term, third_term
         #print "Debug size", first_term.get_shape(), second_term.get_shape(), third_term.get_shape()
         #k = tf.fill([self.n], tf.cast(args.z_dim, tf.float32))
         return -np.sum(0.5 *(first_term + second_term + (third_term) - k))
@@ -42,9 +40,9 @@ def dummy_features(adj, feature, k, n, d):
                 output_list.append( np.multiply(np.transpose(np.matmul(w_in[i], np.transpose(feature))), np.matmul(adj, output_list[i-1])))
             else:
                 output_list.append(np.transpose(np.matmul(w_in[i], np.transpose(feature))))
-            print "Debug output_list"
-            print output_list[i]
-            
+            print("Debug output_list")
+            print(output_list[i])
+
     return np.reshape(output_list[-1],[n, 1, d])
 
 def extract_time(args, samples):
@@ -64,12 +62,12 @@ def get_shape(tensor):
     return tensor.get_shape().as_list()
 
 def load_data(filename):
-    return pickle.load(open(filename))
+    return pickle.load(open(filename, 'rb'))
 
 def starting_adj(args, samples):
     input_data = load_data(args.data_file)
     adj = np.zeros([args.n, args.n])
-    
+
     for i in range(4266):
     #for sample in samples:
         sample = input_data[i]
@@ -96,7 +94,7 @@ def create_samples(args):
 
         sample = train_data[i : i + args.seq_length + 1]
         samples_train.append(sample)
-    
+
     for i in range(0, len(test_data), args.seq_length):
         sample = test_data[i : i + args.seq_length + 1]
         samples_test.append(sample)
@@ -109,11 +107,11 @@ def get_adjacency_list(samples, adj, n):
     for i in range(s):
     #for sample in samples:
         sample = samples[0][i]
-	u = int(sample[0])
+        u = int(sample[0])
         v = int(sample[1])
         m = sample[3]
-	
-	print "debug u, v", u, v
+
+        print("debug u, v", u, v)
         if m == 0:
             adj[u][v] = 1
             adj[v][u] = 1

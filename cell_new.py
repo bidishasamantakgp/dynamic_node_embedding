@@ -10,7 +10,7 @@ class MPPCell(object):
     """Variational Auto Encoder cell."""
 
     def __init__(self, args, features, B_old, r_old, eps):
-        
+
         '''
         Args:
         '''
@@ -19,12 +19,12 @@ class MPPCell(object):
         self.n_c = args.n_c
         self.n = args.n
         self.n_h = args.h_dim
-        
+
 	#self.adj = adj
         #self.T = t_next
         #self.adj_prev = adj_prev
-        
-	self.d = args.d_dim
+
+        self.d = args.d_dim
         self.k = args.k
         self.B_old = B_old
         self.r_old = r_old
@@ -36,12 +36,12 @@ class MPPCell(object):
 
 
     def new_call(self, x, adj, adj_prev, t_next, state, scope=None):
-        
+
         '''
-	Args:
-	    x : input event (u,v,t, type)
-    	'''
-        
+        Args:
+        x : input event (u,v,t, type)
+        '''
+
         state_temporal, state_structural = state
         #print "Debug inside cell", x, state_temporal, state_structural
         #u, v, t, type_m = x
@@ -49,28 +49,28 @@ class MPPCell(object):
         v = x[0][1]
         t = x[0][2]
         type_m = x[0][3]
-        
+
         h_t = state_temporal
         h_s = state_structural
-        
-        
+
+
         #o_t, h_t = state_temporal
         #o_s, h_s = state_structural
-        
+
         #event_indicator = np.zeros([self.n])
         #event_indicator[u] = 1
         #event_indicator[v] = 1
-        
+
         k = self.k
-        
+
         with tf.variable_scope(scope or type(self).__name__, reuse=tf.AUTO_REUSE):
             with tf.variable_scope("Prior"):
                 h_inter = fc_layer(h_t, self.n_h, scope="intermidiate")
                 y = input_layer(adj_prev, self.features, k, self.n, self.d)
                 y_s = []
                 y_t = []
-                
-		for i in range(self.n):
+
+                for i in range(self.n):
                     #print "Debug y_i", y[i].dtype, h_s.dtype, y.get_shape(), h_s.get_shape()
                     y_s.append(tf.concat([y[i], h_s], axis=1))
                     #print "Debug y_s shape", y_s[i].get_shape()
@@ -95,7 +95,7 @@ class MPPCell(object):
                 #print "Debug Y", y_s_stack.shape, y_t_stack.shape
                 prior_zeta_hidden = fc_layer(y_s_stack, self.z_dim, activation=tf.nn.relu, scope="zeta_hidden")
                 prior_z_hidden = fc_layer(y_t_stack, self.z_dim, activation=tf.nn.relu, scope="z_hidden")
-            
+
                 prior_zeta_mu = fc_layer(prior_zeta_hidden, self.z_dim, activation=tf.nn.softplus, scope="zeta_mu")
                 prior_zeta_mu = tf.reshape(prior_zeta_mu, [self.n, self.z_dim, 1])
 
@@ -107,20 +107,20 @@ class MPPCell(object):
 
                 prior_z_sigma = fc_layer(prior_z_hidden, self.z_dim, activation=tf.nn.softplus, scope="z_sigma")  # >=0
                 prior_z_sigma = tf.matrix_diag(prior_z_sigma)
-            
+
 
             with tf.variable_scope("Encoder"):
                 # (i-1)th input size N x d
                 # self.adj[u][v] = 1
                 # self.adj[v][u] = 1
-                
+
                 y_current = input_layer(adj, self.features, k, self.n, self.d)
-                
+
                 y_s = []
                 y_t = []
-                
+
                 h_inter = fc_layer(h_t, self.n_h, scope="intermidiate")
-                
+
                 for i in range(self.n):
                     val = np.array([(1 - type_m) * t])
                     val = np.reshape(val, [1, -1])
@@ -154,13 +154,13 @@ class MPPCell(object):
 
                 enc_z_mu = fc_layer(enc_z_hidden, self.z_dim, activation=tf.nn.softplus, scope="z_mu")
                 enc_z_mu = tf.reshape(enc_z_mu, [self.n, self.z_dim, 1])
-                
+
                 enc_zeta_sigma = fc_layer( enc_zeta_hidden, self.z_dim, activation=tf.nn.softplus, scope="zeta_sigma" )  # >=0
                 enc_zeta_sigma = tf.matrix_diag(enc_zeta_sigma)
 
                 enc_z_sigma = fc_layer( enc_z_hidden, self.z_dim, activation=tf.nn.softplus, scope="z_sigma" )  # >=0
                 enc_z_sigma = tf.matrix_diag( enc_z_sigma )
-    
+
 
             # Random sampling ~ N(0, 1)
             eps = self.eps
@@ -170,13 +170,13 @@ class MPPCell(object):
             for i in range(self.n):
                 z_stack.append(tf.matmul(enc_z_sigma[i], eps[i]))
                 zeta_stack.append(tf.matmul(enc_zeta_sigma[i], eps[i]))
-            
+
             z = tf.add(enc_z_mu, tf.stack(z_stack))
             zeta = tf.add(enc_zeta_mu, tf.stack(zeta_stack))
-            
+
             # After training when we want to generate values:
-            
-            if self.sample: 
+
+            if self.sample:
                 z_stack = []
                 zeta_stack = []
                 for i in range(n):
@@ -184,11 +184,11 @@ class MPPCell(object):
                     zeta_stack.append(tf.matmul(prior_zeta_sigma[i], eps[i]))
                 z = tf.add(enc_z_mu, tf.stack(z_stack))
                 zeta = tf.add(enc_zeta_mu, tf.stack(zeta_stack))
-            
+
             with tf.variable_scope("Decoder"):
-                zeta_flatten = tf.reshape(zeta, [self.n, self.z_dim]) 
+                zeta_flatten = tf.reshape(zeta, [self.n, self.z_dim])
                 c = fc_layer(zeta_flatten, self.n_c, activation=tf.nn.softplus, scope="cluster")
-                
+
                 B_hidden = fc_layer(tf.concat([h_s, tf.transpose(tf.gather(zeta, u)), tf.transpose(tf.gather(zeta, v))], axis = 1), self.n_c, activation=tf.nn.softplus, scope="SBM_hidden" )
                 B = tf.cast(type_m, tf.float32) * self.B_old + tf.cast((1 - type_m), tf.float32) * B_hidden
                 r_hidden = fc_layer(tf.concat([h_t, tf.transpose(tf.gather(zeta, u)), tf.transpose(tf.gather(zeta, v))], axis=1), 1, activation=tf.nn.softplus, scope="R_hidden" )
@@ -200,7 +200,7 @@ class MPPCell(object):
                 first = tf.multiply(tf.fill(value = tf.cast(1 - type_m, tf.float32) , dims = [self.n, self.n]), self.r_old)
                 #print "Debug first", first.get_shape(), second.get_shape()
                 r = tf.add(first, second)
-                #print "Debug r size", r.get_shape() 
+                #print "Debug r size", r.get_shape()
                 P = tf.multiply(tf.subtract(tf.ones([self.n, self.n]), adj), (self.alpha * tf.matmul(c, tf.matmul(B, tf.transpose(c))) + (1 - self.alpha) * r))
                 lambda_association = []
                 lambda_communication = []
@@ -221,15 +221,15 @@ class MPPCell(object):
             #print "Debug z dim", tf.reduce_sum(z, axis=0).get_shape(), z.get_shape()
             z_reshape = tf.reshape(z,[self.n, 1, self.z_dim] )
             zeta_reshape = tf.reshape(zeta,[self.n, 1, self.z_dim])
-            
+
             temp = tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1)
             #print "Temp", temp.get_shape(), h_t.get_shape(), tf.zeros([self.n_h]).get_shape(), h_s.get_shape()
-            
+
             o_t_new, s_t = self.lstm_t(tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1), (tf.zeros([]), h_t))
-            o_s_new, s_s = self.lstm_s(tf.concat([tf.reduce_sum(zeta_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_s)) 
+            o_s_new, s_s = self.lstm_s(tf.concat([tf.reduce_sum(zeta_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_s))
             c, h_t_new = s_t
             c, h_s_new = s_s
-             
+
         return (y_s_stack, y_s_enc_stack, l_c, l_a, enc_zeta_mu, enc_z_mu, enc_zeta_sigma, enc_z_sigma, prior_zeta_mu, prior_z_mu, prior_zeta_sigma, prior_z_sigma, B, r), h_t_new, h_s_new
 
     def call(self, x, state):

@@ -15,12 +15,12 @@ logger.setLevel(logging.DEBUG)
 
 def add_arguments():
     parser = argparse.ArgumentParser()
-    
+
     parser.add_argument('--rnn_size', type=int, default=3,
                         help='size of RNN hidden state')
     parser.add_argument('--z_dim', type=int, default=3,
                         help='size of latent space')
-    
+
     parser.add_argument('--n_c', type=int, default=5, help='number of clusters')
     parser.add_argument('--d_dim', type=int, default=84, help='feature dimension')
     parser.add_argument('--h_dim', type=int, default=40, help='hidden state dimension')
@@ -43,7 +43,7 @@ def add_arguments():
     parser.add_argument('--T', type=int, default=10000, help='maximum time T in training')
     parser.add_argument('--train_size', type=int, default=1720500,
                         help='the training instances to be loaded')
-    parser.add_argument('--alpha', type=float, default=0.5, help='probability of sampling') 
+    parser.add_argument('--alpha', type=float, default=0.5, help='probability of sampling')
     parser.add_argument('--sample', type=bool, default=False, help='sampling or training')
 
     parser.add_argument('--data_file', type=str, default='data.pkl',
@@ -56,17 +56,17 @@ if __name__ == '__main__':
     parser = add_arguments()
     args = parser.parse_args()
     t1 = time.time()
-    
+
     #with tf.device('/device:GPU:0'):
     model = MPPModel(args)
 
     t2 = time.time()
-    print "initialising done", t2-t1 , " Time"
+    print("initialising done", t2-t1 , " Time")
     t1 = time.time()
     data_train, data_test = create_samples(args)
     t2 = time.time()
-    print "data loading done", t2-t1, len(data_train), data_train[0]
-    
+    print("data loading done", t2-t1, len(data_train), data_train[0])
+
     #x, y = next_batch(args, data_train, 0)
     #print x, y
     '''
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     adj_list = []
     samples = data_train[:2]
     adj_old = starting_adj(args, samples)
-    for b in xrange(len(samples)):
+    for b in range(len(samples)):
                     x, y = next_batch(args, samples, b)
                     #x = np.reshape(x, [])
                     time_next = extract_time(args, y)
@@ -97,9 +97,9 @@ if __name__ == '__main__':
                     print "Debug adj_list:"
                     for i_index in range(84):
                         print adj_list[0][i_index]
-		
+
 		    print "Debug adj_list ones:", len(adj_list), np.count_nonzero(adj_list[0])
-		    print "Debug adj_list_prev ones:", len(adj_list_prev), np.count_nonzero(adj_list_prev[0])		
+		    print "Debug adj_list_prev ones:", len(adj_list_prev), np.count_nonzero(adj_list_prev[0])
 		    adj_old = adj_list[-1]
                     print "Debug adj_old ones:", np.count_nonzero(adj_old)
 		    features = get_one_hot_features(args.n)
