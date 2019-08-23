@@ -64,7 +64,8 @@ class MPPCell(object):
         k = self.k
 
         with tf.variable_scope(scope or type(self).__name__, reuse=tf.AUTO_REUSE):
-            with tf.variable_scope("Prior"):
+            with tf.device('/gpu:0'):
+             with tf.variable_scope("Prior"):
                 h_inter = fc_layer(h_t, self.n_h, scope="intermidiate")
                 y = input_layer(adj_prev, self.features, k, self.n, self.d)
                 y_s = []
@@ -108,8 +109,8 @@ class MPPCell(object):
                 prior_z_sigma = fc_layer(prior_z_hidden, self.z_dim, activation=tf.nn.softplus, scope="z_sigma")  # >=0
                 prior_z_sigma = tf.matrix_diag(prior_z_sigma)
 
-
-            with tf.variable_scope("Encoder"):
+            with tf.device('/gpu:1'):
+             with tf.variable_scope("Encoder"):
                 # (i-1)th input size N x d
                 # self.adj[u][v] = 1
                 # self.adj[v][u] = 1
@@ -161,31 +162,31 @@ class MPPCell(object):
                 enc_z_sigma = fc_layer( enc_z_hidden, self.z_dim, activation=tf.nn.softplus, scope="z_sigma" )  # >=0
                 enc_z_sigma = tf.matrix_diag( enc_z_sigma )
 
-
-            # Random sampling ~ N(0, 1)
-            eps = self.eps
-            # At the time of training we use the posterior mu sigma
-            z_stack = []
-            zeta_stack = []
-            for i in range(self.n):
-                z_stack.append(tf.matmul(enc_z_sigma[i], eps[i]))
-                zeta_stack.append(tf.matmul(enc_zeta_sigma[i], eps[i]))
-
-            z = tf.add(enc_z_mu, tf.stack(z_stack))
-            zeta = tf.add(enc_zeta_mu, tf.stack(zeta_stack))
-
-            # After training when we want to generate values:
-
-            if self.sample:
+            with tf.device('/gpu:2'):
+                # Random sampling ~ N(0, 1)
+                eps = self.eps
+                # At the time of training we use the posterior mu sigma
                 z_stack = []
                 zeta_stack = []
-                for i in range(n):
-                    z_stack.append(tf.matmul(prior_z_sigma[i], eps[i]))
-                    zeta_stack.append(tf.matmul(prior_zeta_sigma[i], eps[i]))
+                for i in range(self.n):
+                    z_stack.append(tf.matmul(enc_z_sigma[i], eps[i]))
+                    zeta_stack.append(tf.matmul(enc_zeta_sigma[i], eps[i]))
+
                 z = tf.add(enc_z_mu, tf.stack(z_stack))
                 zeta = tf.add(enc_zeta_mu, tf.stack(zeta_stack))
 
-            with tf.variable_scope("Decoder"):
+                # After training when we want to generate values:
+
+                if self.sample:
+                    z_stack = []
+                    zeta_stack = []
+                    for i in range(n):
+                        z_stack.append(tf.matmul(prior_z_sigma[i], eps[i]))
+                        zeta_stack.append(tf.matmul(prior_zeta_sigma[i], eps[i]))
+                    z = tf.add(enc_z_mu, tf.stack(z_stack))
+                    zeta = tf.add(enc_zeta_mu, tf.stack(zeta_stack))
+            with tf.device('/gpu:3'):
+             with tf.variable_scope("Decoder"):
                 zeta_flatten = tf.reshape(zeta, [self.n, self.z_dim])
                 c = fc_layer(zeta_flatten, self.n_c, activation=tf.nn.softplus, scope="cluster")
 
@@ -216,19 +217,20 @@ class MPPCell(object):
                 l_a = fc_layer(tf.reshape(tf.stack(lambda_association), [self.n * self.n, -1]), 1, activation=tf.nn.softplus, scope="association")
                 l_c = fc_layer(tf.reshape(tf.stack(lambda_communication), [self.n * self.n, -1]), 1, activation=tf.nn.softplus, scope="communication")
 
-            (o_t_new, h_t_new) = ([], h_t)
-            time = tf.reshape(tf.cast([t], tf.float32),[1,1])
-            #print "Debug z dim", tf.reduce_sum(z, axis=0).get_shape(), z.get_shape()
-            z_reshape = tf.reshape(z,[self.n, 1, self.z_dim] )
-            zeta_reshape = tf.reshape(zeta,[self.n, 1, self.z_dim])
+            with tf.device('/gpu:4'):
+             (o_t_new, h_t_new) = ([], h_t)
+             time = tf.reshape(tf.cast([t], tf.float32),[1,1])
+             #print "Debug z dim", tf.reduce_sum(z, axis=0).get_shape(), z.get_shape()
+             z_reshape = tf.reshape(z,[self.n, 1, self.z_dim] )
+             zeta_reshape = tf.reshape(zeta,[self.n, 1, self.z_dim])
 
-            temp = tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1)
-            #print "Temp", temp.get_shape(), h_t.get_shape(), tf.zeros([self.n_h]).get_shape(), h_s.get_shape()
+             temp = tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1)
+             #print "Temp", temp.get_shape(), h_t.get_shape(), tf.zeros([self.n_h]).get_shape(), h_s.get_shape()
 
-            o_t_new, s_t = self.lstm_t(tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_t))
-            o_s_new, s_s = self.lstm_s(tf.concat([tf.reduce_sum(zeta_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_s))
-            c, h_t_new = s_t
-            c, h_s_new = s_s
+             o_t_new, s_t = self.lstm_t(tf.concat([tf.reduce_sum(z_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_t))
+             o_s_new, s_s = self.lstm_s(tf.concat([tf.reduce_sum(zeta_reshape, axis=0), time], axis=1), (tf.zeros([self.n_h]), h_s))
+             c, h_t_new = s_t
+             c, h_s_new = s_s
 
         return (h_inter_enc, y_current, y_s_stack, y_s_enc_stack, y_t_enc_stack, enc_zeta_hidden, l_c, l_a, enc_zeta_mu, enc_z_mu, enc_zeta_sigma, enc_z_sigma, prior_zeta_mu, prior_z_mu, prior_zeta_sigma, prior_z_sigma, B, r), h_t_new, h_s_new
 

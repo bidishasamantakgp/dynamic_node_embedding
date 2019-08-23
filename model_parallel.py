@@ -1,6 +1,6 @@
 import tensorflow as tf
 from utils import *
-from cell_new import MPPCell
+from cell_parallel import MPPCell
 import time
 import copy
 from datetime import datetime
@@ -105,20 +105,22 @@ class MPPModel():
             self.ll_list = []
             self.a_l_list = []
             self.c_l_list = []
-
+            
             for i in range(args.seq_length):
                 #print "Debug i", i, l_c[i], l_a[i]
-                print("Zeta KL")
-                kl_loss_zeta = tf_kl_gaussgauss(enc_zeta_mu[i], enc_zeta_sigma[i], prior_zeta_mu[i], prior_zeta_sigma[i])
-                print("Z KL")
-                kl_loss_z = tf_kl_gaussgauss(enc_z_mu[i], enc_z_sigma[i], prior_z_mu[i], prior_z_sigma[i], "Z")
-                self.kl_loss_zeta_list.append(kl_loss_zeta)
-                self.kl_loss_z_list.append(kl_loss_z)
-                a_l, c_l, likelihood_loss = tf_likelihood(y[i],l_a[i], l_c[i])
-                self.ll_list.append(likelihood_loss)
-                self.a_l_list.append(a_l)
-                self.c_l_list.append(c_l)
-                loss += tf.reduce_mean(kl_loss_zeta + kl_loss_z - likelihood_loss)
+                with tf.device('/gpu:6'):
+                    print("Zeta KL")
+                    kl_loss_zeta = tf_kl_gaussgauss(enc_zeta_mu[i], enc_zeta_sigma[i], prior_zeta_mu[i], prior_zeta_sigma[i])
+                    print("Z KL")
+                    kl_loss_z = tf_kl_gaussgauss(enc_z_mu[i], enc_z_sigma[i], prior_z_mu[i], prior_z_sigma[i], "Z")
+                    self.kl_loss_zeta_list.append(kl_loss_zeta)
+                    self.kl_loss_z_list.append(kl_loss_z)
+                    a_l, c_l, likelihood_loss = tf_likelihood(y[i],l_a[i], l_c[i])
+                    self.ll_list.append(likelihood_loss)
+                    self.a_l_list.append(a_l)
+                    self.c_l_list.append(c_l)
+                with tf.device('/cpu:0'):
+                    loss += tf.reduce_mean(kl_loss_zeta + kl_loss_z - likelihood_loss)
             return loss
 
         self.args = args
@@ -140,16 +142,16 @@ class MPPModel():
         self.eps = tf.placeholder(dtype=tf.float32, shape=[args.n, args.z_dim, 1], name='eps')
         self.adj = tf.placeholder(dtype=tf.float32, shape=[args.seq_length, args.n, args.n], name='adj')
         self.adj_prev = tf.placeholder(dtype=tf.float32, shape=[args.seq_length, args.n, args.n], name='prev')
-        self.B_old = tf.placeholder(dtype=tf.float32, shape=[args.seq_length, args.n_c, args.n_c], name='B')
-        self.r_old = tf.placeholder(dtype=tf.float32, shape=[args.seq_length, args.n, args.n], name='R')
+        self.B_old = tf.placeholder(dtype=tf.float32, shape=[args.n_c, args.n_c], name='B')
+        self.r_old = tf.placeholder(dtype=tf.float32, shape=[args.n, args.n], name='R')
         self.time_cur = tf.placeholder(dtype=tf.int32, shape=[args.batch_size, args.seq_length, 1], name='T')
 
         #Trial
         self.initial_state_t = tf.placeholder(dtype = tf.float32, shape = [1, args.h_dim], name = "s_t")
         self.initial_state_s = tf.placeholder(dtype = tf.float32, shape = [1, args.h_dim], name = "s_c")
         #self.event_indicator = tf.placeholder(dtype = tf.int32, shape = [args.n], name = "indicator")
-        with tf.device('/device:GPU:1'):
-         cell = MPPCell(args, self.features, self.B_old, self.r_old, self.eps)
+        #with tf.device('/device:GPU:1'):
+        cell = MPPCell(args, self.features, self.B_old, self.r_old, self.eps)
 
         self.cell = cell
         #debug_state_size = cell.zero_state(batch_size=args.batch_size, dtype=tf.float32)
@@ -163,7 +165,7 @@ class MPPModel():
 
             # Split data because rnn cell needs a list of inputs for the RNN inner loop
         inputs = tf.split(axis=0, num_or_size_splits=args.seq_length, value=inputs) # n_steps * (batch_size, n_hidden)
-        # print "Debug input shpae", self.input_data
+       # print "Debug input shpae", self.input_data
         #Get vrnn cell output
         #outputs, last_state = tf.nn.dynamic_rnn(cell=self.cell, dtype=tf.float32, inputs=self.input_data, initial_state=list_debug)
 
@@ -175,7 +177,7 @@ class MPPModel():
                     #if time_step > 0:
                     #print "time step", time_step
                     tf.get_variable_scope().reuse_variables()
-                    (cell_output, state_t, state_s) = self.cell.new_call(self.input_data[:, time_step, :], self.adj[time_step], self.adj_prev[time_step], self.time_cur[:,time_step, :], , state)
+                    (cell_output, state_t, state_s) = self.cell.new_call(self.input_data[:, time_step, :], self.adj[time_step], self.adj_prev[time_step], self.time_cur[:,time_step, :], state)
                     state = (state_t, state_s)
                     #print "debug output", cell_output
                     outputs.append(cell_output)
@@ -221,38 +223,45 @@ class MPPModel():
         #for t in tvars:
         #    print "trainable vars", t.name
         t1 = time.time()
-        grads = tf.gradients(self.cost, tvars)
+        with tf.device('/gpu:7'):
+            grads = tf.gradients(self.cost, tvars)
         t2 = time.time()
         print("After grad:", t2 - t1)
-        optimizer = tf.train.AdamOptimizer(self.lr)
-        self.train_op = optimizer.apply_gradients(zip(grads, tvars))
-
+        with tf.device('/gpu:7'):
+            optimizer = tf.train.AdamOptimizer(self.lr)
+            self.train_op = optimizer.apply_gradients(zip(grads, tvars))
+        self.sess = tf.Session()
 
     def sample(self):
         #TBD
         return ""
+    def initialize(self):
+        #logger.info("Initialization of parameters")
+        #self.sess.run(tf.initialize_all_variables())
+        self.sess.run(tf.global_variables_initializer())
 
     def train(self, args, samples):
 
-        dirname = args.out_dir
-        #print "Time size of graph", len(tf.get_default_graph().get_operations())
+            dirname = args.out_dir
+            #print "Time size of graph", len(tf.get_default_graph().get_operations())
 
-        ckpt = tf.train.get_checkpoint_state(dirname)
+            ckpt = tf.train.get_checkpoint_state(dirname)
 
-        n_batches = len(samples)
-        #sample_train, sample_test = create_sample(args)
-        config = tf.ConfigProto(
-        allow_soft_placement=True,
-        log_device_placement=False
-        )
-        config.gpu_options.allow_growth = True
-
-        with tf.Session(config=config) as sess:
-        #with tf.Session() as sess:
+            n_batches = len(samples)
+            sample_train, sample_test = create_samples(args)
+            ##config = tf.ConfigProto(
+            ##allow_soft_placement=True,
+            ##log_device_placement=False
+            ##)
+            ##config.gpu_options.allow_growth = True
+    
+            ##with tf.Graph().as_default(), tf.Session(config=config) as sess:
+            ##with tf.Session() as sess:
+            sess = self.sess
             summary_writer = tf.summary.FileWriter('logs/' + datetime.now().isoformat().replace(':', '-'), sess.graph)
             #check = tf.add_check_numerics_ops()
             #merged = tf.summary.merge_all()
-            tf.global_variables_initializer().run()
+            #tf.global_variables_initializer().run()
             saver = tf.train.Saver(tf.global_variables())
 
             initial_state_t = np.zeros([1, args.h_dim])
@@ -268,9 +277,14 @@ class MPPModel():
                 saver.restore(sess, ckpt.model_checkpoint_path)
                 print("Loaded model")
             start = time.time()
+            sess.graph.finalize()
+            #tf.reset_default_graph()
+            
             for e in range(args.num_epochs):
                 print("Size of graph", len(tf.get_default_graph().get_operations()))
-                sess.run(tf.assign(self.lr, args.learning_rate * (args.decay_rate ** e)))
+                for op in tf.get_default_graph().get_operations():
+                    print("OP: ", op)
+                #sess.run(tf.assign(self.lr, args.learning_rate * (args.decay_rate ** e)))
                 adj_list = []
                 adj_list_prev = []
                 for b in range(len(samples)):
@@ -427,7 +441,7 @@ class MPPModel():
                     train_loss, cr, initial_state_s, initial_state_t, B_old, r_old = sess.run(
                             [self.cost, self.train_op, self.final_state_s, self.final_state_t, self.B_new, self.r_new], feed)
                     #summary_writer.add_summary(summary, e * n_batches + b)
-                    if (e * n_batches + b) % args.save_every == 0 and ((e * n_batches + b) > 0):
+                    if (e * n_batches + b) % args.save_every == 0 and ((e * n_batches + b) >= 0):
                         checkpoint_path = os.path.join(dirname, 'model.ckpt')
                         saver.save(sess, checkpoint_path, global_step=e * n_batches + b)
                         print("model saved to {}".format(checkpoint_path))
@@ -443,8 +457,12 @@ class MPPModel():
                                 args.num_epochs * n_batches,
                                 e, args.seq_length * train_loss, end - start))
                     start = time.time()
-                    B_old = np.reshape(B_old, [args.n_c, args.n_c])
-                    r_old = np.reshape(r_old, [args.n, args.n])
+                    B_old = np.reshape(B_old[-1], [args.n_c, args.n_c])
+                    r_old = np.reshape(r_old[-1], [args.n, args.n])
+
+                    initial_state_s = [initial_state_s[-1]]
+                    initial_state_t = [initial_state_t[-1]]
+            tf.reset_default_graph()
 
 
     def predict_association(self, test_sample, adj):

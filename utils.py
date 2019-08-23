@@ -74,7 +74,7 @@ def starting_adj(args, samples):
         u = int(sample[0] - 1)
         v = int(sample[1] - 1)
         m = sample[3]
-
+        
         if m == 0:
             adj[u][v] = 1
             adj[v][u] = 1
@@ -83,29 +83,36 @@ def starting_adj(args, samples):
 
 def create_samples(args):
     input_data = load_data(args.data_file)
-    input_data = [(int(u-1), int(v-1), t, m) for (u, v, t, m) in input_data]
+    start = input_data[0][2]
+    #start = 0
+    input_data = [(int(u-1), int(v-1), ((t-start) * 1.0)/ (24 * 3600), m) for (u, v, t, m) in input_data]
     train_data = input_data[4266:args.train_size+4266]
     test_data = input_data[args.train_size+4266:]
     samples_train = []
     samples_test = []
-
+    print(len(train_data))
     for i in range(0, len(train_data), args.seq_length):
         #if i + args.seq_length < len(train_data):
 
         sample = train_data[i : i + args.seq_length + 1]
+        
         samples_train.append(sample)
+        i += args.seq_length
 
     for i in range(0, len(test_data), args.seq_length):
         sample = test_data[i : i + args.seq_length + 1]
         samples_test.append(sample)
+        i += args.seq_length
 
     return samples_train, samples_test
 
 def get_adjacency_list(samples, adj, n):
     adj_list = []
     s = samples.shape[1]
+    #s = len(samples)
     for i in range(s):
     #for sample in samples:
+        
         sample = samples[0][i]
         u = int(sample[0])
         v = int(sample[1])

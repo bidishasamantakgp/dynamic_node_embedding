@@ -74,14 +74,34 @@ if __name__ == '__main__':
     data_train, data_test = create_samples(args)
     t2 = time.time()
     print("data loading done", t2-t1, len(data_train), data_train[0])
-    for i in range(10):
-    	x, y = next_batch(args, data_train, i)
-    	print(x, y)
+    
+    len_ = len(data_train)
+
+
+    print("Length", len_)
+    #for i in range(12):
+    #	x, y = next_batch(args, data_train, len_ - i -1)
+    #	print(x, y)
+    
+    #adj = np.zeros([84,84])
+    #adj = get_adjacency_list([x for (x,y) in data_train], adj, 84)
+    adj = starting_adj(args, data_train)
+    '''  
+    for i in range(84):
+        print(np.count_nonzero(adj[i]))
+    '''
+
+
+
+
+
+
+    
     #'''
     #'''
     adj_list_prev = []
     adj_list = []
-    samples = data_train
+    samples = data_train[9:11]
     adj_old = starting_adj(args, samples)
     for b in range(len(samples)):
                     x, y = next_batch(args, samples, b)
@@ -94,16 +114,24 @@ if __name__ == '__main__':
                     if len(adj_list_prev) > 0:
                         adj_list_prev[1:] = copy.copy(adj_list[:-1])
                     else:
+                        print("Inside else")
                         adj_list_prev = [np.zeros((args.n, args.n))]
+                        print("Debug", len(adj_list_prev))
+                        adj_list_prev.extend(adj_list[:-1])
 
+                    for i in range(10):
+                        print("adj_list", adj_list[i].shape)
+                        print("adj_lis_prev", adj_list_prev[i].shape)
                     #print "Debug adj list_prev:", adj_list_prev
                     #print "Debug adj_list:", adj_list
 
-                    print("Debug adj_list_prev:")
-                    for i_index in range(84):
-                        print(adj_list_prev[0][i_index])
+                    #print("Debug adj_list_prev:")
+                    #for i_index in range(84):
+                    #    print(adj_list_prev[0][i_index])
 
-                    print("Debug adj_list:")
+                    print("Debug adj_list:", len(adj_list))
+                    print("Debug adj_list_prev:", len(adj_list_prev))
+                    '''
                     for i_index in range(84):
                         print(adj_list[0][i_index])
 
@@ -114,5 +142,6 @@ if __name__ == '__main__':
                     features = get_one_hot_features(args.n)
                     print("Features", features)
                     print(dummy_features(adj_list[0], features, 5, 84, 84))
+                    '''
     #'''
     #model.train(args, data_train[:4])

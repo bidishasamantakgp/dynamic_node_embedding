@@ -1,5 +1,5 @@
 from utils import *
-from model import MPPModel
+from model_parallel import MPPModel
 
 import tensorflow as tf
 import numpy as np
@@ -29,9 +29,9 @@ def add_arguments():
                         help='minibatch size')
     parser.add_argument('--seq_length', type=int, default=100,
                         help='RNN sequence length')
-    parser.add_argument('--num_epochs', type=int, default=100,
+    parser.add_argument('--num_epochs', type=int, default=1,
                         help='number of epochs')
-    parser.add_argument('--save_every', type=int, default=500,
+    parser.add_argument('--save_every', type=int, default=1,
                         help='save frequency')
     parser.add_argument('--grad_clip', type=float, default=10.,
                         help='clip gradients at this value')
@@ -59,9 +59,13 @@ if __name__ == '__main__':
 
     #with tf.device('/device:GPU:0'):
     model = MPPModel(args)
-
+    #model.initialize()
     t2 = time.time()
-    print("initialising done", t2-t1 , " Time")
+    print("Graph creation time", t2-t1 , " Time")
+    t1 = time.time()
+    model.initialize()
+    t2 = time.time()
+    print("Graph initialization time", t2-t1, " Time")
     t1 = time.time()
     data_train, data_test = create_samples(args)
     t2 = time.time()
@@ -106,4 +110,4 @@ if __name__ == '__main__':
 		    print "Features", features
 		    print dummy_features(adj_list[0], features, 5, 84, 84)
     '''
-    model.train(args, data_train)
+    model.train(args, data_train[:1])
