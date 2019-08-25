@@ -262,7 +262,7 @@ class MPPModel():
             #check = tf.add_check_numerics_ops()
             #merged = tf.summary.merge_all()
             #tf.global_variables_initializer().run()
-            saver = tf.train.Saver(tf.global_variables())
+            #saver = tf.train.Saver(tf.global_variables())
 
             initial_state_t = np.zeros([1, args.h_dim])
             initial_state_s = np.zeros([1, args.h_dim])
@@ -273,17 +273,17 @@ class MPPModel():
             r_old = np.zeros([args.n, args.n])
 
             adj_old = starting_adj(args, samples)
-            if ckpt:
-                saver.restore(sess, ckpt.model_checkpoint_path)
-                print("Loaded model")
+            #if ckpt:
+            #    saver.restore(sess, ckpt.model_checkpoint_path)
+            #    print("Loaded model")
             start = time.time()
             sess.graph.finalize()
             #tf.reset_default_graph()
             
             for e in range(args.num_epochs):
                 print("Size of graph", len(tf.get_default_graph().get_operations()))
-                for op in tf.get_default_graph().get_operations():
-                    print("OP: ", op)
+                #for op in tf.get_default_graph().get_operations():
+                #    print("OP: ", op)
                 #sess.run(tf.assign(self.lr, args.learning_rate * (args.decay_rate ** e)))
                 adj_list = []
                 adj_list_prev = []
@@ -441,10 +441,10 @@ class MPPModel():
                     train_loss, cr, initial_state_s, initial_state_t, B_old, r_old = sess.run(
                             [self.cost, self.train_op, self.final_state_s, self.final_state_t, self.B_new, self.r_new], feed)
                     #summary_writer.add_summary(summary, e * n_batches + b)
-                    if (e * n_batches + b) % args.save_every == 0 and ((e * n_batches + b) >= 0):
-                        checkpoint_path = os.path.join(dirname, 'model.ckpt')
-                        saver.save(sess, checkpoint_path, global_step=e * n_batches + b)
-                        print("model saved to {}".format(checkpoint_path))
+                    #if (e * n_batches + b) % args.save_every == 0 and ((e * n_batches + b) >= 0):
+                    #    checkpoint_path = os.path.join(dirname, 'model.ckpt')
+                    #    saver.save(sess, checkpoint_path, global_step=e * n_batches + b)
+                    #    print("model saved to {}".format(checkpoint_path))
                     end = time.time()
                     '''
                     print("Debug state_s")

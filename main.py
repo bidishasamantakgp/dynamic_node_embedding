@@ -22,14 +22,14 @@ def add_arguments():
                         help='size of latent space')
 
     parser.add_argument('--n_c', type=int, default=5, help='number of clusters')
-    parser.add_argument('--d_dim', type=int, default=84, help='feature dimension')
+    parser.add_argument('--d_dim', type=int, default=1, help='feature dimension')
     parser.add_argument('--h_dim', type=int, default=40, help='hidden state dimension')
     parser.add_argument('--n', type=int, default=84, help='number of nodes')
     parser.add_argument('--batch_size', type=int, default=1,
                         help='minibatch size')
     parser.add_argument('--seq_length', type=int, default=100,
                         help='RNN sequence length')
-    parser.add_argument('--num_epochs', type=int, default=1,
+    parser.add_argument('--num_epochs', type=int, default=2,
                         help='number of epochs')
     parser.add_argument('--save_every', type=int, default=1,
                         help='save frequency')

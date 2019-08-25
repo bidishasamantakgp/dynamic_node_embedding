@@ -55,7 +55,8 @@ def extract_time(args, samples):
 
 
 def get_one_hot_features(n):
-    return np.identity(n)
+    return np.ones([n, 1])
+    #return np.identity(n)
 
 def get_shape(tensor):
     '''return the shape of tensor as list'''
