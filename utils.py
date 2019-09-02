@@ -1,4 +1,3 @@
-
 import pickle
 import tensorflow as tf
 import numpy as np
@@ -12,20 +11,13 @@ def dummy_kl_gaussgauss(args, mu_1, sigma_1, mu_2, sigma_2):
         det = []
         for i in range(args.n):
                     sigma_2_inv = np.linalg.inv(sigma_2[i])
-                    #print "Debug sigma_2_inv", sigma_2_inv
                     sigma_2_sigma_1.append(np.trace(np.multiply( sigma_2_inv, sigma_1[i])))
-                    #print "Debug sigma_2_sigma_1:", sigma_2_sigma_1[i]
                     mu_diff = np.subtract(mu_2[i], mu_1[i])
-                    #print "Debug mu_diff:", mu_diff
                     sigma_mu_sigma.append(np.matmul(np.matmul(np.transpose(mu_diff), sigma_2_inv), mu_diff))
-                    #print "Debug sigma_mu_sigma:", sigma_mu_sigma[i]
-
                     det.append(np.log(np.maximum(np.linalg.det(sigma_2), 1e-09)) - np.log(np.maximum(np.linalg.det(sigma_1), 1e-09)))
         first_term = np.stack(sigma_2_sigma_1)
         second_term = np.stack(sigma_mu_sigma)
         third_term = np.stack(det)
-        #print "Debug size", first_term.get_shape(), second_term.get_shape(), third_term.get_shape()
-        #k = tf.fill([self.n], tf.cast(args.z_dim, tf.float32))
         return -np.sum(0.5 *(first_term + second_term + (third_term) - k))
 
 def dummy_features(adj, feature, k, n, d):
@@ -69,7 +61,7 @@ def starting_adj(args, samples):
     input_data = load_data(args.data_file)
     adj = np.zeros([args.n, args.n])
 
-    for i in range(4266):
+    for i in range(4273):
     #for sample in samples:
         sample = input_data[i]
         u = int(sample[0] - 1)
@@ -97,6 +89,9 @@ def create_samples(args):
 
         sample = train_data[i : i + args.seq_length + 1]
         
+        if len(sample) < args.seq_length:
+            l_e = sample[-1]
+            sample.extend([l_e for el in range(args.seq_length + 1 - len(sample))])
         samples_train.append(sample)
         i += args.seq_length
 
@@ -113,13 +108,12 @@ def get_adjacency_list(samples, adj, n):
     #s = len(samples)
     for i in range(s):
     #for sample in samples:
-        
         sample = samples[0][i]
         u = int(sample[0])
         v = int(sample[1])
         m = sample[3]
 
-        print("debug u, v", u, v)
+        #print("debug u, v", u, v)
         if m == 0:
             adj[u][v] = 1
             adj[v][u] = 1

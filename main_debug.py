@@ -1,5 +1,5 @@
 from utils import *
-from model import MPPModel
+from model_parallel import MPPModel
 
 import tensorflow as tf
 import numpy as np
@@ -79,9 +79,9 @@ if __name__ == '__main__':
 
 
     print("Length", len_)
-    #for i in range(12):
-    #	x, y = next_batch(args, data_train, len_ - i -1)
-    #	print(x, y)
+    for i in range(1):
+    	x, y = next_batch(args, data_train, i)
+    	print(x, y)
     
     #adj = np.zeros([84,84])
     #adj = get_adjacency_list([x for (x,y) in data_train], adj, 84)
@@ -90,18 +90,12 @@ if __name__ == '__main__':
     for i in range(84):
         print(np.count_nonzero(adj[i]))
     '''
-
-
-
-
-
-
     
     #'''
-    #'''
+    '''
     adj_list_prev = []
     adj_list = []
-    samples = data_train[9:11]
+    samples = data_train[0:1]
     adj_old = starting_adj(args, samples)
     for b in range(len(samples)):
                     x, y = next_batch(args, samples, b)
@@ -131,7 +125,6 @@ if __name__ == '__main__':
 
                     print("Debug adj_list:", len(adj_list))
                     print("Debug adj_list_prev:", len(adj_list_prev))
-                    '''
                     for i_index in range(84):
                         print(adj_list[0][i_index])
 
@@ -143,5 +136,4 @@ if __name__ == '__main__':
                     print("Features", features)
                     print(dummy_features(adj_list[0], features, 5, 84, 84))
                     '''
-    #'''
     #model.train(args, data_train[:4])
