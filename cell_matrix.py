@@ -29,7 +29,7 @@ class MPPCell(object):
         self.lstm_t = tf.contrib.rnn.LSTMCell(self.n_h, state_is_tuple=True)
 
 
-    def new_call(self, x, adj, adj_prev, t_next, state, B_old, r_old, scope=None):
+    def new_call(self, x, x_prev, adj, adj_prev, t_next, state, B_old, r_old, scope=None):
 
         '''
         Args:
@@ -46,6 +46,8 @@ class MPPCell(object):
         type_m = x[0][3]
         #t_next = t_next 
 
+        u_prev = x_prev[0][0]
+        v_prev = x_prev[0][1]
 
         h_t = state_temporal
         h_s = state_structural
@@ -65,6 +67,10 @@ class MPPCell(object):
             scaling_n2 = tf.ones([self.n, self.n, 1], tf.float32)
             temp_u = tf.reshape(tf.one_hot(indices=u, depth=self.n), [1, self.n])
             temp_v = tf.reshape(tf.one_hot(indices=v, depth=self.n), [1, self.n])
+
+            temp_u_prev = tf.reshape(tf.one_hot(indices=u_prev, depth=self.n), [1, self.n])
+            temp_v_prev = tf.reshape(tf.one_hot(indices=v_prev, depth=self.n), [1, self.n])
+
             h_inter = fc_layer(h_t, self.n_h, scope="intermidiate")
             h_s_scaled = tf.matmul(scaling, h_s)
             h_t_scaled = tf.matmul(scaling, h_inter)
@@ -85,16 +91,16 @@ class MPPCell(object):
                 
                 y_s = tf.concat([y, h_s_scaled], axis = 1)
 
-                #y_u = tf.matmul(temp_u, y)
-                #y_v = tf.matmul(temp_v, y)    
+                y_u_prev = tf.matmul(temp_u_prev, y)
+                y_v_prev = tf.matmul(temp_v_prev, y)    
 
-                #u_append = tf.matmul(tf.matmul(adj_prev , tf.transpose(temp_u)), y_u)
-                #v_append = tf.matmul(tf.matmul(adj_prev , tf.transpose(temp_v)), y_v)
+                u_append = tf.matmul(tf.matmul(adj_prev , tf.transpose(temp_u_prev)), y_u_prev)
+                v_append = tf.matmul(tf.matmul(adj_prev , tf.transpose(temp_v_prev)), y_v_prev)
 
-                #append_val = tf.add(u_append, v_append)
+                append_val = tf.add(u_append, v_append)
                
-                #y_t = tf.concat([y, append_val, h_t_scaled], axis=1)
-                y_t = tf.concat([y, h_t_scaled], axis=1)
+                y_t = tf.concat([y, append_val, h_t_scaled], axis=1)
+                #y_t = tf.concat([y, h_t_scaled], axis=1)
                 # Dimension is n X d
                 #print "Debug Y", y_s_stack.shape, y_t_stack.shape
                 prior_zeta_hidden = fc_layer(y_s, self.z_dim, activation=tf.nn.softplus, scope="zeta_hidden")
@@ -173,7 +179,7 @@ class MPPCell(object):
             with tf.variable_scope("Decoder"):
                 zeta_flatten = tf.reshape(zeta, [self.n, self.z_dim])
                 C = tf.nn.softmax(fc_layer(zeta_flatten, self.n_c, scope="cluster"), axis=1)
-                B_hidden = fc_layer(tf.concat([h_s, tf.transpose(tf.gather(zeta, u)), tf.transpose(tf.gather(zeta, v))], axis = 1), self.n_c, activation=tf.nn.softplus, scope="SBM_hidden" )
+                B_hidden = fc_layer(tf.concat([h_s, tf.transpose(tf.gather(zeta, u_prev)), tf.transpose(tf.gather(zeta, v_prev))], axis = 1), self.n_c, activation=tf.nn.softplus, scope="SBM_hidden" )
                 B = tf.add(tf.cast(type_m, tf.float32) * B_old, tf.matmul(scaling_b ,  tf.cast((1 - type_m), tf.float32) * B_hidden))
                 r_hidden = fc_layer(tf.concat([h_t, tf.transpose(tf.gather(zeta, u)), tf.transpose(tf.gather(zeta, v))], axis=1), 1, activation=tf.nn.softplus, scope="R_hidden" )
                 #print "Debug intermediate step", a.get_shape()                

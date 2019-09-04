@@ -1,6 +1,56 @@
 import pickle
 import tensorflow as tf
 import numpy as np
+from sklearn.metrics import mean_absolute_error
+
+def find_error(true, predicted):
+    return mean_absolute_error(true, predicted)
+
+def get_expected_c(test_times, l_c_list):
+    l = len(test_times)
+    res = np.zeros(len(l_c_list[0]))
+    for i in range(l):
+        res = np.add(res, test_times[len - i] * np.array(l_c_list[len -i]))
+    return res
+
+def get_expected_a(test_times, l_a_list):
+    l = len(test_times)
+    res = np.zeros(len(l_c_list[0]))
+    for i in range(l):
+        res = np.add(res, test_times[len - i] * np.array(l_a_list[len -i]))
+    return res
+
+def calculate_association(samples, l_a_list):
+    count_hit = 0.0
+
+    for (s, l_a) in zip(samples, l_a_list):
+        u = s[0]
+        v = s[1]
+        m = s[2]
+        t = s[3]
+        if m == 1:
+            continue
+        indexes = np.flip(np.argsort(l_a[u]))
+        if np.where(indexes, v)[0] <= 10 :
+            count_hit += 1
+    return count_hit / len(samples)
+
+
+
+def calculate_communication(sample, l_c_list):
+    count_hit = 0.0
+
+    for (s, l_c) in zip(samples, l_c_list):
+        u = s[0]
+        v = s[1]
+        m = s[2]
+        t = s[3]
+        if m == 0:
+            continue
+        indexes = np.flip(np.argsort(l_a[u]))
+        if np.where(indexes, v)[0] <= 10 :
+            count_hit += 1
+    return count_hit / len(samples)
 
 def dummy_kl_gaussgauss(args, mu_1, sigma_1, mu_2, sigma_2):
         k = np.zeros([args.n])
@@ -26,7 +76,6 @@ def dummy_features(adj, feature, k, n, d):
     #tf.get_variable(name="w_in", shape=[k,d,d], initializer=tf.constant_initializer(0.5))
     #w_in = tf.Print(w_in,[w_in], message="my w_in-values:")
     output_list = []
-
     for i in range(k):
             if i > 0:
                 output_list.append( np.multiply(np.transpose(np.matmul(w_in[i], np.transpose(feature))), np.matmul(adj, output_list[i-1])))
