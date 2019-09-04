@@ -20,7 +20,6 @@ def add_arguments():
                         help='size of RNN hidden state')
     parser.add_argument('--z_dim', type=int, default=15,
                         help='size of latent space')
-
     parser.add_argument('--n_c', type=int, default=5, help='number of clusters')
     parser.add_argument('--d_dim', type=int, default=1, help='feature dimension')
     parser.add_argument('--h_dim', type=int, default=20, help='hidden state dimension')
@@ -45,7 +44,6 @@ def add_arguments():
                         help='the training instances to be loaded')
     parser.add_argument('--alpha', type=float, default=0.5, help='probability of sampling')
     parser.add_argument('--sample', type=bool, default=False, help='sampling or training')
-
     parser.add_argument('--data_file', type=str, default='data.pkl',
                         help='the pkl file from the series can be loaded')
     parser.add_argument('--out_dir', type=str, default='output',
@@ -110,4 +108,4 @@ if __name__ == '__main__':
 		    print "Features", features
 		    print dummy_features(adj_list[0], features, 5, 84, 84)
     '''
-    model.train(args, data_train[:1])
+    model.train(args, data_train)

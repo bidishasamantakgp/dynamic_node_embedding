@@ -79,8 +79,8 @@ def create_samples(args):
     start = input_data[0][2]
     #start = 0
     input_data = [(int(u-1), int(v-1), ((t-start) * 1.0)/ (24 * 3600), m) for (u, v, t, m) in input_data]
-    train_data = input_data[4266:args.train_size+4266]
-    test_data = input_data[args.train_size+4266:]
+    train_data = input_data[4273:args.train_size]
+    test_data = input_data[args.train_size:]
     samples_train = []
     samples_test = []
     print(len(train_data))

@@ -5,8 +5,8 @@ import tensorflow as tf
 def input_layer(adj, feature, k, n, d, activation = None, batch_norm = False, istrain = False, scope = None):
     #with tf.device('/device:GPU:0'):
     with tf.variable_scope(scope or "input", reuse=tf.AUTO_REUSE):
-        w_in = tf.get_variable(name="w_in", shape=[k,d,d], initializer=tf.constant_initializer(0.005))
-        #w_in = tf.get_variable(name="w_in", shape = [k, d, d], initializer=tf.contrib.layers.xavier_initializer())
+        #w_in = tf.get_variable(name="w_in", shape=[k,d,d], initializer=tf.constant_initializer(0.005))
+        w_in = tf.get_variable(name="w_in", shape = [k, d, d], initializer=tf.contrib.layers.xavier_initializer())
 	#w_in = tf.Print(w_in,[w_in], message="my w_in-values:")
         output_list = []
 
@@ -43,8 +43,8 @@ def fc_layer(input_, output_size, activation = None, batch_norm = False, istrain
     '''
     #with tf.device('/device:GPU:0'):
     with tf.variable_scope(scope or "fc", reuse=tf.AUTO_REUSE):
-        #w = tf.get_variable(name="w", shape = [get_shape(input_)[1], output_size], initializer=tf.contrib.layers.xavier_initializer())
-        w = tf.get_variable(name="w", shape = [get_shape(input_)[1], output_size], initializer=tf.constant_initializer(0.01))
+        w = tf.get_variable(name="w", shape = [get_shape(input_)[1], output_size], initializer=tf.contrib.layers.xavier_initializer())
+        #w = tf.get_variable(name="w", shape = [get_shape(input_)[1], output_size], initializer=tf.constant_initializer(0.01))
         #w = tf.Print(w,[w], message="my W-values:")
 
         b = tf.get_variable(name="b", shape = [output_size], initializer=tf.constant_initializer(0.01))
@@ -79,9 +79,9 @@ def fc_layer_3d(input_, output_size, activation = None, batch_norm = False, istr
     '''
     #with tf.device('/device:GPU:0'):
     with tf.variable_scope(scope or "fc", reuse=tf.AUTO_REUSE):
-        #w = tf.get_variable(name="w", shape = [get_shape(input_)[1], output_size], initializer=tf.contrib.layers.xavier_initializer())
-        w = tf.get_variable(name="w", shape = [get_shape(input_)[0], get_shape(input_)[2], output_size], initializer=tf.constant_initializer(0.01))
         #w = tf.get_variable(name="w", shape = [get_shape(input_)[0], get_shape(input_)[2], output_size], initializer=tf.contrib.layers.xavier_initializer())
+        #w = tf.get_variable(name="w", shape = [get_shape(input_)[0], get_shape(input_)[2], output_size], initializer=tf.constant_initializer(0.01))
+        w = tf.get_variable(name="w", shape = [get_shape(input_)[0], get_shape(input_)[2], output_size], initializer=tf.contrib.layers.xavier_initializer())
         #tf.tile(w, )
         #w = tf.Print(w,[w], message="my W-values:")
 

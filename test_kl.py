@@ -71,10 +71,17 @@ def KL(mu_1, sigma_1, mu_2, sigma_2):
                 print("Size", trace_val.shape, sigma_mu_sigma.shape, det_val.shape, k.shape)
                 return np.sum(0.5 * (trace_val + sigma_mu_sigma + det_val - k))
 
-s1 = np.loadtxt("enc_z_sigma_debug_0.txt")
-mu1 = np.reshape(np.loadtxt("enc_z_mu_debug_0.txt"), [84, 15, 1])
-s2 = np.loadtxt("prior_z_sigma_debug_0.txt")
-mu2 = np.reshape(np.loadtxt("prior_z_mu_debug_0.txt"), [84, 15, 1])
+#s1 = np.loadtxt("enc_z_sigma_debug_0.txt")
+#mu1 = np.reshape(np.loadtxt("enc_z_mu_debug_0.txt"), [84, 15, 1])
+#s2 = np.loadtxt("prior_z_sigma_debug_0.txt")
+#mu2 = np.reshape(np.loadtxt("prior_z_mu_debug_0.txt"), [84, 15, 1])
+
+s1 = np.loadtxt("enc_z_sigma_debug_1.txt")
+mu1 = np.reshape(np.loadtxt("enc_z_mu_debug_1.txt"), [84, 15, 1])
+s2 = np.loadtxt("prior_z_sigma_debug_1.txt")
+mu2 = np.reshape(np.loadtxt("prior_z_mu_debug_1.txt"), [84, 15, 1])
+
+
 print(KL(mu1, s1, mu2, s2))
 
 self.sess = tf.Session()
