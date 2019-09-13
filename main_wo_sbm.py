@@ -1,4 +1,4 @@
-from utils_new import *
+from utils import *
 from model_parallel import MPPModel
 
 import tensorflow as tf
@@ -36,7 +36,7 @@ def add_arguments():
     
     parser.add_argument('--num_epochs', type=int, default=10,
                         help='number of epochs')
-    parser.add_argument('--save_every', type=int, default=1000,
+    parser.add_argument('--save_every', type=int, default=100,
                         help='save frequency')
     parser.add_argument('--grad_clip', type=float, default=10.,
                         help='clip gradients at this value')
@@ -50,7 +50,7 @@ def add_arguments():
                         help='the training instances to be loaded')
     parser.add_argument('--test_size', type=int, default=100000,
                         help='the training instances to be loaded')
-    parser.add_argument('--alpha', type=float, default=0.1, help='probability of adding the own value')
+    parser.add_argument('--alpha', type=float, default=0.5, help='probability of sampling')
     parser.add_argument('--sample', type=bool, default=False, help='sampling or training')
     parser.add_argument('--sbm', type=bool, default=True, help='sbm application')
     parser.add_argument('--data_file', type=str, default='data.pkl',
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     t1 = time.time()
 
     #with tf.device('/device:GPU:0'):
-    #args.sbm = False
+    args.sbm = False
     model = MPPModel(args)
     t2 = time.time()
     print("Graph creation time", t2-t1 , " Time")

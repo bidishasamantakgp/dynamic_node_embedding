@@ -28,15 +28,16 @@ def add_arguments():
                         help='minibatch size')
     parser.add_argument('--seq_length', type=int, default=100,
                         help='RNN sequence length')
-    parser.add_argument('--start', type=int, default=4273,
-                        help='starting association')
+    #model.initialize()
 
     parser.add_argument('--hours', type=int, default=24,
                         help='RNN sequence length')
-    
+    #model.initialize()
+    parser.add_argument('--start', type=int, default=4273,
+                                    help='starting association')
     parser.add_argument('--num_epochs', type=int, default=10,
                         help='number of epochs')
-    parser.add_argument('--save_every', type=int, default=1000,
+    parser.add_argument('--save_every', type=int, default=100,
                         help='save frequency')
     parser.add_argument('--grad_clip', type=float, default=10.,
                         help='clip gradients at this value')
@@ -46,13 +47,13 @@ def add_arguments():
                         help='decay of learning rate')
     parser.add_argument('--k', type=int, default=5, help='dimension of the hidden space')
     parser.add_argument('--T', type=int, default=590, help='maximum time T in training')
+    parser.add_argument('--test_size', type=int, default=0,
+                        help='the test instances to be loaded, put some positive value for prediction')
     parser.add_argument('--train_size', type=int, default=1501183,
                         help='the training instances to be loaded')
-    parser.add_argument('--test_size', type=int, default=100000,
-                        help='the training instances to be loaded')
-    parser.add_argument('--alpha', type=float, default=0.1, help='probability of adding the own value')
-    parser.add_argument('--sample', type=bool, default=False, help='sampling or training')
     parser.add_argument('--sbm', type=bool, default=True, help='sbm application')
+    parser.add_argument('--alpha', type=float, default=0.5, help='probability of sampling')
+    parser.add_argument('--sample', type=bool, default=False, help='sampling or training')
     parser.add_argument('--data_file', type=str, default='data.pkl',
                         help='the pkl file from the series can be loaded')
     parser.add_argument('--out_dir', type=str, default='output',
@@ -63,24 +64,35 @@ if __name__ == '__main__':
     parser = add_arguments()
     args = parser.parse_args()
     t1 = time.time()
-
-    #with tf.device('/device:GPU:0'):
+    #args.sample = True
     #args.sbm = False
+    #with tf.device('/device:GPU:0'):
     model = MPPModel(args)
     t2 = time.time()
     print("Graph creation time", t2-t1 , " Time")
     t1 = time.time()
-    model.initialize()
+    #model.initialize()
+    model.restore(args.out_dir)
     t2 = time.time()
-    print("Graph initialization time", t2-t1, " Time")
+    print("Graph restoring time", t2-t1, " Time")
     t1 = time.time()
     data_train, data_test = create_samples(args)
     t2 = time.time()
-    print("data loading done", t2-t1, len(data_train), len(data_train[-1]))
+    print("data loading done", t2-t1, len(data_train), data_train[-1], data_train[0], len(data_train[-1]), len(data_test[-1]), data_test[0])
     #print(data_train)
     #for i in range(25):
     #x, y = next_batch(args, data_train, 21)
     #    print i, x, y
     #print("Train data", data_train[0])
-    
-    model.train(args, data_train)
+    #print("test_data", len(data_test), len(data_test[-1]))
+    '''
+    state, b, r, a, a_p = model.get_state(args, data_train)
+    np.savetxt(args.out_dir + "/state.txt", state)
+    np.savetxt(args.out_dir + "/B.txt", b)
+    np.savetxt(args.out_dir + "/R.txt", r)
+    np.savetxt(args.out_dir + "/adj.txt", a)
+    np.savetxt(args.out_dir + "/adj_prev.txt", a_p)
+    '''
+    #model.event_time_predicion(args, data_train, data_test)
+    #args.sample = True
+    model.dynamic_link_prediction(args, data_train, data_test)

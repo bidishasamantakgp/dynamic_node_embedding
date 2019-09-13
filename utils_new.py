@@ -161,27 +161,42 @@ def get_rank(samples, l_a_list, m):
         rank_total += rank
     return (count_hit, rank_total, true_event)
 
-def calculate_association(samples, l_a_list, n):
+def calculate_association(samples, l_a_list, m1, n):
     count_hit = 0.0
     true_event = 0
     rank_total  = 0.0
+    #indicator = np.ones([n, n])
+    occurance = np.zeros([n,n])
     for (s, l_a) in zip(samples, l_a_list):
-        u = s[0]
-        v = s[1]
+        u = int(s[0])
+        v = int(s[1])
         t = s[2]
-        m = s[3]
+        m = int(s[3])
         l_a = np.reshape(l_a, [n, n])
-        if m == 1:
+        if m == (1 - m1):
             continue
         true_event += 1
-        indexes = np.flip(np.argsort(l_a[u]))
+        indi_u = np.zeros([n])
+        for x in range(n):
+            if (occurance[u][x] == 0 or occurance[u][x] >= 70000 or x == v):
+                indi_u[x] = 1
+            if occurance[u][x] >= 70000:
+                    occurance[u][x] = 1
+
+
+        #indi_u[v] = 1
+        #occurance[u][v] += 1
+        print("Debug indi:", m1,u,v, occurance[u], indi_u, np.count_nonzero(indi_u), np.nonzero(indi_u))
+        indexes = np.flip(np.argsort(np.multiply(l_a[u], indi_u)))
         #print("Debug indices", indexes, v)
         rank = np.where(indexes == v) [0]
         #if np.where(indexes == v)[0] <= 10 :
+        occurance[u][v] += 1
         if rank < 10 :
             count_hit += 1
         rank_total += rank
 
+        #indicator[u][v] = 0
     if true_event == 0:
         retval = 0
         rank_total = 0
@@ -197,6 +212,7 @@ def calculate_communication(samples, l_c_list, n):
     count_hit = 0.0
     true_event = 0
     rank_total = 0.0
+
     for (s, l_c) in zip(samples, l_c_list):
         u = s[0]
         v = s[1]
@@ -294,11 +310,11 @@ def create_samples(args):
     input_data = load_data(args.data_file)
     start = input_data[0][2]
     #start = 0
-    input_data = [(int(u), int(v), ((t-start) * 1.0)/ (args.hours * 3600), m) for (u, v, t, m) in input_data]
+    input_data = [(int(u), int(v), ((t-start) * 1.0)/ (args.hours), m) for (u, v, t, m) in input_data]
     #input_data = [(int(u-1), int(v-1), ((t-start) * 1.0)/ (args.hours * 3600), m) for (u, v, t, m) in input_data]
-    train_size = (args.seq_length + 1)* (args.train_size / (args.seq_length + 1))
+    train_size = (args.seq_length + 1)* ((args.train_size - args.start)/ (args.seq_length + 1))
     train_data = input_data[args.start:train_size]
-    test_data = input_data[train_size:train_size+args.test_size]
+    test_data = input_data[train_size - 1 : train_size -1 + args.test_size]
     samples_train = []
     samples_test = []
     print(len(train_data))

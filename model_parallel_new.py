@@ -1,5 +1,5 @@
 import tensorflow as tf
-from utils_new import *
+from utils import *
 from cell_matrix import MPPCell
 import time
 import copy
@@ -19,7 +19,9 @@ class MPPModel():
                 t = y[0][2]
                 l_a_r = tf.reshape(l_a, [self.n * self.n])
                 l_c_r = tf.reshape(l_c, [self.n * self.n])
-
+                
+                last_time_sr = tf.sqare(self.last_time)
+                current_time_sr = tf.square(tf.fill(self.))
                 index = self.n * (u) + v
                 l_a_occured = tf.cast([1 - m], tf.float32) * tf.gather(l_a_r, index)
                 l_c_occured = tf.cast([m], tf.float32) * tf.gather(l_c_r, index)
@@ -149,18 +151,14 @@ class MPPModel():
         print("Len trainable", len(tvars))
         #for t in tvars:
         #    print "trainable vars", t.name
-        #t1 = time.time()
+        t1 = time.time()
         #with tf.device('/gpu:7'):
-        #grads = tf.gradients(self.cost, tvars)
-        #self.grads = [(tf.clip_by_value(grad, -100., 100.), var) for grad, var in grads]
-        #t2 = time.time()
-        #print("After grad:", t2 - t1)
+        self.grads = tf.gradients(self.cost, tvars)
+        t2 = time.time()
+        print("After grad:", t2 - t1)
         #with tf.device('/gpu:7'):
         optimizer = tf.train.AdamOptimizer(self.lr)
-        gvs = optimizer.compute_gradients(self.cost)
-        self.grads = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in gvs]
-        self.train_op = optimizer.apply_gradients(self.grads)
-        #self.train_op = optimizer.apply_gradients(zip(self.grads, tvars))
+        self.train_op = optimizer.apply_gradients(zip(self.grads, tvars))
         self.sess = tf.Session()
 
     def sample(self):
@@ -279,11 +277,8 @@ class MPPModel():
             checkpoint_path = os.path.join(dirname, 'model.ckpt')
             saver.save(sess, checkpoint_path, global_step=args.num_epochs * n_batches + len(samples))
             np.savetxt(dirname+"/state.txt", initial_state)
-            np.savetxt(dirname+"/B.txt", B_old)
+            np.savetxt(dirnmae+"/B.txt", B_old)
             np.savetxt(dirname+"/r.txt", r_old)
-            np.savetxt(dirname+"/adj.txt", adj_old)
-            np.savetxt(dirname+"/adj_prev.txt", adj_old_prev)
-
             #tf.reset_default_graph()
 
 
@@ -297,23 +292,14 @@ class MPPModel():
         adj_list = []
         adj_list_prev = []
         features = get_one_hot_features(self.n) 
-        initial_state = np.reshape(np.loadtxt(args.out_dir + "/initial_state.txt"), [1, -1 ])
-        #initial_state = np.random.rand(1, 2 * args.h_dim)
-        #adj_old = starting_adj(args, samples)
-        adj_old = starting_adj(args, args.start+1, samples)
-        adj_old_prev = starting_adj(args, args.start, samples)
-        #eps = np.random.randn(args.n, args.z_dim, 1)
-        eps = np.reshape(np.loadtxt(args.out_dir + "/initial_eps.txt"), [self.n, args.z_dim, 1])
+        initial_state = np.random.rand(1, 2 * args.h_dim)
+        adj_old = starting_adj(args, samples)
+        eps = np.random.randn(args.n, args.z_dim, 1)
         sess = self.sess
         for b in range(len(samples)):
             x, y = next_batch(args, samples, b)
             # x = np.reshape(x, [])
-
             time_next = extract_time(args, y)
-           
-            adj_list = get_adjacency_list(y, adj_old, args.n)
-            adj_list_prev = get_adjacency_list(x, adj_old_prev, args.n)
-            '''
             if len(adj_list_prev) > 0:
                 adj_list_prev[0] = copy.copy(adj_list[-1])
             adj_list = get_adjacency_list(x, adj_old, args.n)
@@ -323,23 +309,21 @@ class MPPModel():
             else:
                 adj_list_prev = [np.zeros((args.n, args.n))]
                 adj_list_prev.extend(adj_list[:-1])
-            '''
             adj_old = adj_list[-1]
-            adj_old_prev = adj_list_prev[-1]
 
             feed = {self.initial_state:initial_state, \
                     self.input_data: x, self.target_data: y, self.features: features, self.eps:eps, \
                     self.B_old: B_old, self.r_old: r_old, self.adj: adj_list, self.adj_prev: adj_list_prev, \
                     self.time_cur: time_next}
 
-            final_state, B_old, r_old = sess.run(
-                            [self.final_state, self.B_new, self.r_new], feed)
+            final_state, B_old, r_old, C = sess.run(
+                            [self.final_state, self.B_new, self.r_new, self.C], feed)
             
             B_old = np.reshape(B_old[-1], [args.n_c, args.n_c])
             r_old = np.reshape(r_old[-1], [args.n, args.n])
             initial_state = final_state[0]
 
-        return (initial_state, B_old, r_old, adj_old, adj_old_prev)
+        return (initial_state, B_old, r_old, adj_old)
 
 
     # Experiment 1
@@ -347,12 +331,12 @@ class MPPModel():
     def dynamic_link_prediction(self, args, train_samples, test_samples):
         print("Starting state")
         #state, B_old, r_old, adj_old = self.get_state(args, train_samples[:-1])
-        state = np.reshape(np.loadtxt(args.out_dir + "/state.txt"), [1, -1])
-        B_old = np.loadtxt(args.out_dir + "/B.txt")
-        r_old = np.loadtxt(args.out_dir + "/R.txt")
-        adj_old = np.loadtxt(args.out_dir + "/adj.txt")
-        eps = np.reshape(np.loadtxt(args.out_dir + "/initial_eps.txt"), [self.n, args.z_dim, 1])
-        adj_old_prev = np.loadtxt(args.out_dir + "/adj_prev.txt")
+        state = np.loadtxt("citation_states/state_c10.txt")
+        B_old = np.loadtxt("citation_states/b_c10.txt")
+        r_old = np.loadtxt("citation_states/r_c10.txt")
+        adj_old = np.loadtxt("citation_states/adj_c10.txt")
+        eps = np.loadtxt("eps.txt")
+        
         #state = np.loadtxt("github_states/state_g1.txt")
         #B_old = np.loadtxt("github_states/b_g1.txt")
         #r_old = np.loadtxt("github_states/r_g1.txt")
@@ -391,9 +375,6 @@ class MPPModel():
         for b in range(len(test_samples)):
             x, y = next_batch(args, test_samples, b)
             time_next = extract_time(args, y)
-            adj_list = get_adjacency_list(y, adj_old, args.n)
-            adj_list_prev = get_adjacency_list(x, adj_old_prev, args.n)
-            '''
             if len(adj_list_prev) > 0:
                 adj_list_prev[0] = copy.copy(adj_list[-1])
             adj_list = get_adjacency_list(x, adj_old, args.n)
@@ -404,40 +385,37 @@ class MPPModel():
                 adj_list_prev = [np.zeros((args.n, args.n))]
                 # print("Debug", len(adj_list_prev))
                 adj_list_prev.extend(adj_list[:-1])
-            '''
+
             adj_old = adj_list[-1]
-            adj_old_prev = adj_list_prev[-1]
+
             feed = {self.initial_state:initial_state, \
                     self.input_data: x, self.target_data: y, self.features: features, self.eps:eps, \
                     self.B_old: B_old, self.r_old: r_old, self.adj: adj_list, self.adj_prev: adj_list_prev, \
                     self.time_cur: time_next}    
             #print("Shape ", x.shape, r_old.shape)
-            state_list, final_state, B_old_1, r_old_1, l_a, l_c = sess.run([self.state_list, self.final_state, self.B_new, self.r_new, self.l_a, self.l_c], feed)
+            state_list, final_state, B_old_1, r_old_1, C, l_a, l_c = sess.run([self.state_list, self.final_state, self.B_new, self.r_new, self.C, self.l_a, self.l_c], feed)
             B_old = np.reshape(B_old_1[-1], [args.n_c, args.n_c])
             r_old = np.reshape(r_old_1[-1], [args.n, args.n])
 
             #initial_state_s = [initial_state_s[-1]]
             #initial_state_t = [initial_state_t[-1]]
             initial_state = final_state[0]
-            #'''
-            hit_, r, true_event = calculate_association(y[0], l_a, 0, self.n)
-            #hit_, r, true_event = calculate_association(test_samples[b], l_a, 0, self.n)
+            ''' 
+            hit_, r, true_event = calculate_association(test_samples[b], l_a, self.n)
             hit_a += hit_
             r_a += r
             t_a += true_event
-            #hit_, r, true_event = calculate_communication(test_samples[b], l_c, self.n)
-            #hit_, r, true_event = calculate_association(test_samples[b], l_c, 1, self.n)
-            hit_, r, true_event = calculate_association(y[0], l_c, 1, self.n)
+            hit_, r, true_event = calculate_communication(test_samples[b], l_c, self.n)
             hit_c += hit_
             r_c += r
             t_c += true_event
-            #'''
+            '''
             ground_truth.extend(y[0])
-            #l_a_list.extend(l_a)
-            #l_c_list.extend(l_c)
-        #get_most_recent_time(args, ground_truth[:100000], self.n, l_a_list[:100000], l_c_list[:100000])
-        #hit_a, r_a, t_a = get_rank_new(ground_truth, 0)
-        #hit_c, r_c, t_c = get_rank_new(ground_truth, 1)
+            l_a_list.extend(l_a)
+            l_c_list.extend(l_c)
+        get_most_recent_time(args, ground_truth[:100000], self.n, l_a_list[:100000], l_c_list[:100000])
+        hit_a, r_a, t_a = get_rank_new(ground_truth, 0)
+        hit_c, r_c, t_c = get_rank_new(ground_truth, 1)
         print("Len test sample:", len(test_samples),t_a,t_c)
         print("hit_a:", hit_a)
         print("hit_c:", hit_c)
@@ -445,7 +423,6 @@ class MPPModel():
         print("rank_a:", r_a)
         print("rank_c:", r_c)
         print("Total rank:", (r_a + r_c)/(t_a + t_c))
-        pickle.dump(ground_truth, open("test.pkl", "wb"))
         return (hit_a + hit_c)
 
 
